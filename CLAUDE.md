@@ -258,6 +258,8 @@ The current default personality ('walrus') features:
 - Uses witty roasts and playful sarcasm
 - Adapts tone to channel context
 - Respects boundaries while keeping edge
+- SEARCHES for facts instead of making them up
+- NEVER ends responses with annoying questions
 
 ## 📝 Configuration Guide
 
