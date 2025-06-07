@@ -71,10 +71,11 @@
    - ✅ SLACK_APP_TOKEN (optional, for socket mode)
 
 2. **AI Provider Credentials** (configured via .env):
+   - ✅ LAMBDA_API_KEY (optional - for Lambda Labs/Deepseek models)
    - ✅ OPENAI_API_KEY (optional)
    - ✅ ANTHROPIC_API_KEY (optional)
    - ✅ Auto-detects available providers
-   - ✅ Configurable models via OPENAI_MODEL and ANTHROPIC_MODEL
+   - ✅ Configurable models via LAMBDA_MODEL, OPENAI_MODEL and ANTHROPIC_MODEL
 
 3. **Behavioral Preferences** (configured via .env):
    - ✅ Response personality via AI_PERSONALITY (walrus/professional/casual/playful)
@@ -314,19 +315,44 @@ The current default personality ('walrus') features:
    SLACK_APP_TOKEN=xapp-your-app-token  # For socket mode
    
    # AI Provider (at least one required)
+   # Option 1: Lambda Labs (for Deepseek models)
+   LAMBDA_API_KEY=your-lambda-api-key
+   
+   # Option 2: OpenAI
    OPENAI_API_KEY=sk-your-key-here
+   
+   # Option 3: Anthropic
    ANTHROPIC_API_KEY=sk-ant-your-key-here
    ```
 
 ### 🧠 AI Configuration
 
-**Optional AI settings in .env**:
-```bash
-# Models (defaults shown)
-OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-mini, o1-preview
-ANTHROPIC_MODEL=claude-3-opus-20240229
-OPENAI_MAX_TOKENS=1000            # Max response tokens (default: 1000)
-OPENAI_TEMPERATURE=0.7            # Creativity 0-2 (default: 0.7, o1 models ignore this)
+**AI Provider Options**:
+
+1. **Lambda Labs** (OpenAI-compatible API for advanced models):
+   - Uses Deepseek-R1-0528 with FULL web search support!
+   - No rate limits on requests
+   - Supports all OpenAI API features including function calling
+   - Configuration:
+     ```bash
+     LAMBDA_API_KEY=your-lambda-api-key
+     LAMBDA_MODEL=deepseek-r1-0528      # Default model
+     LAMBDA_MAX_TOKENS=2000             # Max response tokens
+     LAMBDA_TEMPERATURE=0.7             # Creativity 0-2
+     ```
+
+2. **OpenAI**:
+   ```bash
+   OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-mini, o1-preview
+   OPENAI_MAX_TOKENS=1000            # Max response tokens (default: 1000)
+   OPENAI_TEMPERATURE=0.7            # Creativity 0-2 (default: 0.7, o1 models ignore this)
+   ```
+
+3. **Anthropic**:
+   ```bash
+   ANTHROPIC_MODEL=claude-3-opus-20240229
+   # Note: Anthropic settings are currently hardcoded
+   ```
 
 # Behavior
 AI_PERSONALITY=walrus  # Default: opinionated assistant with attitude
@@ -353,7 +379,9 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - Custom personalities can be added by modifying the `createSystemPrompt()` method in `app.ts`
 
 **Web Search Feature**:
-- Available when using OpenAI provider with function calling
+- Available with OpenAI provider and Deepseek-R1-0528 via Lambda Labs
+- NOT available with o1 models or original Deepseek-R1
+- Deepseek-R1-0528 has FULL web search capabilities via function calling
 - Automatically triggered for factual queries (sports scores, recent events, news, facts)
 - REQUIRED for queries matching factual patterns - prevents hallucination
 - Can search for real-time information on any topic
@@ -378,7 +406,7 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - `/pup status` - Check AI service health
 - `/pup clear cache` - Clear response cache
 - `/pup clear context` - Reset conversation
-- `/pup provider [openai|anthropic]` - Switch providers
+- `/pup provider [openai|anthropic]` - Switch providers (Lambda Labs uses 'openai' provider)
 - `/pup help` - Show all commands
 
 **Bot responds to**:
@@ -409,7 +437,10 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - `SLACK_BOT_TOKEN` - Bot OAuth token
 - `SLACK_SIGNING_SECRET` - Request validation
 - `MY_USER_ID` - Owner's Slack user ID
-- `OPENAI_API_KEY` - OpenAI API access
+- AI Provider (choose one):
+  - `LAMBDA_API_KEY` + `LAMBDA_MODEL` - Lambda Labs/Deepseek
+  - `OPENAI_API_KEY` + `OPENAI_MODEL` - OpenAI
+  - `ANTHROPIC_API_KEY` - Anthropic Claude
 - **NOT** `SLACK_APP_TOKEN` - Omit to force HTTP mode
 
 **Local Development (.env)**:
@@ -431,4 +462,4 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 **Last Updated**: 2025-01-07  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Personality Update - Replaced wellness influencer with opinionated assistant personality
+**Session**: Lambda Labs Integration - Added support for Deepseek-R1 via Lambda Labs API

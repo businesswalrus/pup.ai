@@ -13,10 +13,18 @@ export class OpenAIProvider extends BaseAIProvider {
     if (!this.validateConfig()) {
       throw new Error(`Invalid configuration for ${this.name} provider`);
     }
-    this.client = new OpenAI({
+    
+    const clientConfig: any = {
       apiKey: this.config.apiKey,
       timeout: this.config.timeout || 30000,
-    });
+    };
+    
+    // Support custom base URL for Lambda Labs or other OpenAI-compatible APIs
+    if (this.config.baseURL) {
+      clientConfig.baseURL = this.config.baseURL;
+    }
+    
+    this.client = new OpenAI(clientConfig);
     this.webSearch = new WebSearchService();
   }
 
@@ -106,12 +114,20 @@ export class OpenAIProvider extends BaseAIProvider {
       
       // Use max_completion_tokens for o1 models, max_tokens for others
       const isO1Model = this.config.model?.startsWith('o1') || this.config.model?.includes('o4');
+      
+      // Check for specific Deepseek versions - R1-0528 supports function calling!
+      const isDeepseekR1Original = this.config.model?.toLowerCase() === 'deepseek-r1';
+      
+      // o1 models and original Deepseek R1 don't support function calling
+      // BUT Deepseek-R1-0528 DOES support it!
+      const supportsTools = !isO1Model && !isDeepseekR1Original;
+      
       const completionParams: any = {
         model: this.config.model!,  // Config always has model from app.ts defaults
         messages: messages as any,
         user: context.userId,
-        tools: needsWebSearch ? tools : undefined,
-        tool_choice: needsWebSearch ? 'required' : undefined,
+        tools: needsWebSearch && supportsTools ? tools : undefined,
+        tool_choice: needsWebSearch && supportsTools ? 'required' : undefined,
       };
       
       // o1 models only support temperature=1
@@ -165,7 +181,7 @@ export class OpenAIProvider extends BaseAIProvider {
         
         const followUpCompletion = await this.client.chat.completions.create(followUpParams);
         
-        const finalResponse = followUpCompletion.choices[0]?.message?.content || '';
+        const finalResponse = followUpCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
         const usage = followUpCompletion.usage;
         
         return {
@@ -182,7 +198,7 @@ export class OpenAIProvider extends BaseAIProvider {
       }
 
       // No tool calls, return regular response
-      const response = message?.content || '';
+      const response = message?.content || 'I need a moment to process that request. Please try again.';
       const usage = completion.usage;
 
       return {
@@ -294,7 +310,12 @@ export class OpenAIProvider extends BaseAIProvider {
       return false;
     }
     
-    // Validate API key format (should start with 'sk-')
+    // For Lambda Labs or custom endpoints, don't validate key format
+    if (this.config.baseURL) {
+      return true;
+    }
+    
+    // Validate OpenAI API key format (should start with 'sk-')
     return this.config.apiKey.startsWith('sk-');
   }
 }

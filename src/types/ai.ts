@@ -33,6 +33,7 @@ export interface AIProviderConfig {
   maxTokens?: number;
   temperature?: number;
   timeout?: number;
+  baseURL?: string;  // For Lambda Labs or other OpenAI-compatible APIs
 }
 
 export interface AIProvider {

@@ -155,18 +155,22 @@ export class PupAI {
           case 'status':
             if (this.aiService) {
               const health = this.aiService.healthCheck();
+              const isLambda = !!process.env.LAMBDA_API_KEY;
+              const providerDisplay = isLambda ? `${health.activeProvider} (Lambda Labs)` : health.activeProvider;
+              
               await say({
                 text: `🐶 pup.ai status:\n` +
                   `• AI Service: ${health.available ? '✅ Active' : '❌ Unavailable'}\n` +
-                  `• Active Provider: ${health.activeProvider || 'None'}\n` +
+                  `• Active Provider: ${providerDisplay || 'None'}\n` +
                   `• Active Model: ${health.activeModel || 'None'}\n` +
                   `• Available Providers: ${Object.entries(health.providers).map(([name, status]) => 
                     `${name} ${status ? '✅' : '❌'}`).join(', ')}\n` +
-                  `• Cache Stats: ${health.cacheStats.size}/${health.cacheStats.maxSize} entries`
+                  `• Cache Stats: ${health.cacheStats.size}/${health.cacheStats.maxSize} entries` +
+                  (isLambda ? `\n• Note: Running via Lambda Labs API` : '')
               });
             } else {
               await say({
-                text: '🐶 pup.ai is running without AI capabilities. Set OPENAI_API_KEY or ANTHROPIC_API_KEY to enable AI.'
+                text: '🐶 pup.ai is running without AI capabilities. Set LAMBDA_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY to enable AI.'
               });
             }
             break;
@@ -293,8 +297,18 @@ export class PupAI {
         systemPrompt: this.createSystemPrompt()
       };
 
+      // Check for Lambda Labs configuration (uses OpenAI-compatible API)
+      if (process.env.LAMBDA_API_KEY) {
+        aiConfig.providers.openai = {
+          apiKey: process.env.LAMBDA_API_KEY,
+          model: process.env.LAMBDA_MODEL || 'deepseek-r1-0528',
+          maxTokens: process.env.LAMBDA_MAX_TOKENS ? parseInt(process.env.LAMBDA_MAX_TOKENS) : 2000,
+          temperature: process.env.LAMBDA_TEMPERATURE ? parseFloat(process.env.LAMBDA_TEMPERATURE) : 0.7,
+          baseURL: 'https://api.lambda.ai/v1'
+        };
+      }
       // Check for OpenAI configuration
-      if (process.env.OPENAI_API_KEY) {
+      else if (process.env.OPENAI_API_KEY) {
         aiConfig.providers.openai = {
           apiKey: process.env.OPENAI_API_KEY,
           model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
@@ -311,8 +325,8 @@ export class PupAI {
           maxTokens: 1000,
           temperature: 0.7
         };
-        // If Anthropic is available and no OpenAI, use Anthropic as default
-        if (!process.env.OPENAI_API_KEY) {
+        // If Anthropic is available and no OpenAI/Lambda, use Anthropic as default
+        if (!process.env.OPENAI_API_KEY && !process.env.LAMBDA_API_KEY) {
           aiConfig.defaultProvider = 'anthropic';
         }
       }
@@ -323,7 +337,7 @@ export class PupAI {
         console.log('✅ AI service initialized with provider:', this.aiService.getActiveProvider());
       } else {
         console.log('⚠️ No AI providers configured. Bot will run without AI capabilities.');
-        console.log('   To enable AI, set OPENAI_API_KEY or ANTHROPIC_API_KEY in your .env file');
+        console.log('   To enable AI, set LAMBDA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in your .env file');
       }
     } catch (error) {
       console.error('Failed to initialize AI service:', error);
@@ -439,10 +453,27 @@ export class PupAI {
     });
     
     // Add model info so the AI knows what it's running on
-    const modelName = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    let modelName = process.env.LAMBDA_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    let modelDisplay = modelName;
+    
+    // Make model names more user-friendly
+    if (process.env.LAMBDA_MODEL) {
+      modelDisplay = `Deepseek-R1 (via Lambda Labs)`;
+    }
     
     prompt += `\n\nIMPORTANT: Today's date is ${currentDate}. When searching for current events or recent information, always include appropriate date context in your searches.`;
-    prompt += `\n\nYou are running on the ${modelName} model. Do not claim to be any other model.`;
+    prompt += `\n\nYou are running on ${modelDisplay}. Do not claim to be any other model.`;
+    
+    // Add model-specific limitations notice
+    if (modelName.startsWith('o1') || modelName.includes('o4')) {
+      prompt += `\n\nNOTE: You are running on an o1-series model which does not yet support web search or function calling. For factual queries about current events, sports scores, or real-time information, you should clearly state that you cannot search for this information and suggest the user try a different model or check the information themselves.`;
+    } else if (modelName.toLowerCase() === 'deepseek-r1') {
+      // Original Deepseek-R1 doesn't support web search
+      prompt += `\n\nNOTE: You are running on the original Deepseek-R1 model which does not support web search. For real-time information, inform users that you cannot search the web and suggest they verify current information independently.`;
+    } else if (modelName.toLowerCase().includes('deepseek-r1-0528')) {
+      // Deepseek-R1-0528 DOES support web search!
+      prompt += `\n\nNOTE: You are running on Deepseek-R1-0528, an advanced reasoning model from Lambda Labs with FULL web search capabilities. When asked about current events, sports scores, or factual information, you WILL automatically search the web to provide accurate, up-to-date information. You excel at complex reasoning, code generation, AND real-time information retrieval.`;
+    }
     
     return prompt;
   }
