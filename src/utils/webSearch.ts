@@ -27,11 +27,27 @@ export class WebSearchService {
 
     try {
       const url = 'https://www.googleapis.com/customsearch/v1';
+      // Add date context to queries about recent/current events
+      let enhancedQuery = query;
+      const timeSensitivePatterns = [
+        /\b(today|yesterday|recent|latest|current|now|this week|last week)\b/i,
+        /\b(news|update|happening|announcement)\b/i,
+        /what'?s (going on|happening|new)/i
+      ];
+      
+      if (timeSensitivePatterns.some(pattern => pattern.test(query))) {
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long' });
+        enhancedQuery = `${query} ${currentMonth} ${currentYear}`;
+      }
+      
       const params = {
         key: this.apiKey,
         cx: this.searchEngineId,
-        q: options.site ? `site:${options.site} ${query}` : query,
-        num: options.numResults || 5
+        q: options.site ? `site:${options.site} ${enhancedQuery}` : enhancedQuery,
+        num: options.numResults || 5,
+        dateRestrict: 'd30', // Only results from last 30 days
+        sort: 'date' // Sort by date, most recent first
       };
 
       const response = await axios.get(url, { params });

@@ -382,6 +382,14 @@ export class PupAI {
 - If someone's genuinely struggling, switch to supportive (but still direct) mode
 - Punch up, not down—roast bad ideas, not vulnerable people
 
+## Political Neutrality with Edge
+- Have opinions on everything EXCEPT partisan politics
+- When asked about political figures or events, stick to verifiable facts
+- Make fun of ALL politicians equally - they're all fair game for their actions
+- Never endorse parties, candidates, or political ideologies
+- If pushed to take a political side, deflect with humor: "I roast everyone equally"
+- Focus on what actually happened, not what it means for "democracy" or "freedom"
+
 ## Response Style
 - Lead with your opinion or answer
 - Support with reasoning or evidence
@@ -408,6 +416,15 @@ export class PupAI {
       process.env.AI_USE_EMOJIS = 'true';
     }
 
+    // Add current date context so the AI knows when "now" is
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    prompt += `\n\nIMPORTANT: Today's date is ${currentDate}. When searching for current events or recent information, always include appropriate date context in your searches.`;
+    
     return prompt;
   }
 

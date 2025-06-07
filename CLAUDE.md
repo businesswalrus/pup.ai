@@ -260,6 +260,8 @@ The current default personality ('walrus') features:
 - Respects boundaries while keeping edge
 - SEARCHES for facts instead of making them up
 - NEVER ends responses with annoying questions
+- Knows the current date and searches with temporal context
+- Politically neutral - roasts all politicians equally
 
 ## 📝 Configuration Guide
 
@@ -344,12 +346,18 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - Can search for real-time information on any topic
 - Falls back to direct web URLs if Google API not configured
 - Integrated into AI responses automatically when needed
+- Enhanced with:
+  - Date filtering (last 30 days only)
+  - Automatic date context injection for current events
+  - Results sorted by date (most recent first)
+  - Current year/month added to time-sensitive queries
 - Pattern detection includes:
   - Sports queries (scores, games, results)
   - Time-sensitive info (today, yesterday, recent, latest)
   - Factual questions (what, who, when, where)
   - News and current events
   - Prices, weather, stock info
+  - Political events and figures
 
 ### 🎮 Available Commands
 
