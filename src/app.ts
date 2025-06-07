@@ -472,7 +472,7 @@ export class PupAI {
       prompt += `\n\nNOTE: You are running on the original Deepseek-R1 model which does not support web search. For real-time information, inform users that you cannot search the web and suggest they verify current information independently.`;
     } else if (modelName.toLowerCase().includes('deepseek-r1-0528')) {
       // Deepseek-R1-0528 DOES support web search!
-      prompt += `\n\nNOTE: You are running on Deepseek-R1-0528, an advanced reasoning model from Lambda Labs with FULL web search capabilities. When asked about current events, sports scores, or factual information, you WILL automatically search the web to provide accurate, up-to-date information. You excel at complex reasoning, code generation, AND real-time information retrieval.`;
+      prompt += `\n\nNOTE: You are running on Deepseek-R1-0528, an advanced reasoning model from Lambda Labs with FULL web search capabilities. You have access to the web_search function which you MUST use when asked about:\n- Current events or news\n- Sports scores, games, or results (like "finals game tonight" or "tennis yesterday")\n- Weather or time-sensitive information\n- Stock prices or market data\n- Any factual information that could change over time\n\nALWAYS use the web_search function for these queries. Do not claim you cannot search - you CAN and MUST search when needed. The web_search function is your primary tool for getting current information.`;
     }
     
     return prompt;

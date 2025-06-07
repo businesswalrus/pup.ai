@@ -93,21 +93,26 @@ export class OpenAIProvider extends BaseAIProvider {
 
       // Check if the prompt needs web search for factual information
       const factualPatterns = [
-        // Sports patterns
-        /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf)\b/i,
-        /\b(score|game|match|win|won|lost|beat|defeat|result|outcome)\b/i,
-        /\b(player|team|athlete|stats|points|rebounds|assists|goals|yards)\b/i,
-        // Time-sensitive patterns
-        /\b(today|yesterday|this week|last week|recently|latest|current|now|just|update)\b/i,
-        /\b(happened|happening|occurred|took place)\b/i,
+        // Sports patterns - very broad to catch all sports queries
+        /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf|finals|championship|playoffs|tournament)\b/i,
+        /\b(score|game|match|win|won|lost|beat|defeat|result|outcome|playing|play|played)\b/i,
+        /\b(player|team|athlete|stats|points|rebounds|assists|goals|yards|touchdown)\b/i,
+        // Time-sensitive patterns - catch all temporal references
+        /\b(today|tonight|yesterday|tomorrow|this week|last week|recently|latest|current|now|just|update|last night)\b/i,
+        /\b(happened|happening|occurred|took place|going on|scheduled)\b/i,
         // Factual query patterns
-        /^(what|who|when|where|how|did|is|was|are|were)\b.*\?/i,
+        /^(what|who|when|where|how|did|is|was|are|were|which|whose)\b/i,
         /\b(fact|verify|check|confirm|true|false|actually|really)\b/i,
         // News and events
-        /\b(news|announcement|released|announced|reported|breaking)\b/i,
+        /\b(news|announcement|released|announced|reported|breaking|headline)\b/i,
         // Specific fact requests
-        /\b(price|cost|worth|value|stock|market|weather|temperature)\b/i,
-        /vs\.|versus|against/i
+        /\b(price|cost|worth|value|stock|market|weather|temperature|forecast)\b/i,
+        /vs\.?|versus|against/i,
+        // Additional patterns for common queries
+        /\b(live|streaming|watch|channel)\b/i,
+        /\b(record|history|all-time|best|worst|first|last)\b/i,
+        // Catch queries about specific years
+        /\b(20\d{2}|19\d{2})\b/
       ];
       
       const needsWebSearch = factualPatterns.some(pattern => pattern.test(prompt));
@@ -122,13 +127,38 @@ export class OpenAIProvider extends BaseAIProvider {
       // BUT Deepseek-R1-0528 DOES support it!
       const supportsTools = !isO1Model && !isDeepseekR1Original;
       
+      // Debug logging
+      console.log('🔍 Web Search Debug:', {
+        model: this.config.model,
+        prompt: prompt.substring(0, 100) + '...',
+        needsWebSearch,
+        isO1Model,
+        isDeepseekR1Original,
+        supportsTools,
+        willUseTools: needsWebSearch && supportsTools
+      });
+      
+      // Build completion parameters
       const completionParams: any = {
         model: this.config.model!,  // Config always has model from app.ts defaults
         messages: messages as any,
         user: context.userId,
-        tools: needsWebSearch && supportsTools ? tools : undefined,
-        tool_choice: needsWebSearch && supportsTools ? 'required' : undefined,
       };
+      
+      // Only add tools if needed and supported
+      if (needsWebSearch && supportsTools) {
+        completionParams.tools = tools;
+        // For Lambda Labs, don't use tool_choice parameter as it might not be supported
+        if (!this.config.baseURL?.includes('lambda.ai')) {
+          completionParams.tool_choice = 'required';  // Force tool use when needed
+        } else {
+          // For Lambda Labs, add explicit instruction to use tools
+          const lastMessage = messages[messages.length - 1];
+          if (lastMessage.role === 'user') {
+            lastMessage.content = `IMPORTANT: This query requires web search. You MUST use the web_search function to find current information before responding. Query: ${lastMessage.content}`;
+          }
+        }
+      }
       
       // o1 models only support temperature=1
       if (!isO1Model) {
@@ -144,6 +174,14 @@ export class OpenAIProvider extends BaseAIProvider {
       const completion = await this.client.chat.completions.create(completionParams);
 
       const message = completion.choices[0]?.message;
+      
+      // Debug logging for response
+      console.log('🔍 API Response Debug:', {
+        model: completion.model,
+        hasToolCalls: !!(message?.tool_calls && message.tool_calls.length > 0),
+        toolCallsCount: message?.tool_calls?.length || 0,
+        messageContent: message?.content?.substring(0, 100) + '...'
+      });
       
       // Handle tool calls if present
       if (message?.tool_calls && message.tool_calls.length > 0) {
@@ -197,7 +235,72 @@ export class OpenAIProvider extends BaseAIProvider {
         };
       }
 
-      // No tool calls, return regular response
+      // No tool calls - check if we should have used web search
+      if (needsWebSearch && supportsTools && this.config.baseURL?.includes('lambda.ai')) {
+        console.log('🔍 Lambda Labs fallback: Performing manual web search...');
+        
+        // Extract a search query from the prompt
+        let searchQuery = prompt;
+        
+        // Try to extract a more specific query
+        const queryMatch = prompt.match(/(?:about|what|when|where|who|is there|was there)\s+(.+?)(?:\?|$)/i);
+        if (queryMatch) {
+          searchQuery = queryMatch[1];
+        }
+        
+        try {
+          // Perform web search manually
+          const searchResults = await this.webSearch.search(searchQuery);
+          
+          // Format search results
+          const searchContext = `\n\nWeb search results for "${searchQuery}":\n${searchResults.slice(0, 3).map((r, i) => 
+            `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
+          ).join('\n\n')}`;
+          
+          // Add search results to messages and retry
+          messages.push({
+            role: 'system',
+            content: `Here are current web search results to help answer the user's question:${searchContext}`
+          });
+          
+          // Retry the completion with search results in context
+          const retryParams: any = {
+            model: this.config.model!,
+            messages: messages as any,
+            user: context.userId,
+          };
+          
+          if (!isO1Model) {
+            retryParams.temperature = this.config.temperature ?? 0.7;
+          }
+          
+          if (isO1Model) {
+            retryParams.max_completion_tokens = this.config.maxTokens || 1000;
+          } else {
+            retryParams.max_tokens = this.config.maxTokens || 1000;
+          }
+          
+          const retryCompletion = await this.client.chat.completions.create(retryParams);
+          const retryResponse = retryCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
+          
+          return {
+            content: retryResponse,
+            model: retryCompletion.model,
+            provider: this.name,
+            usage: retryCompletion.usage ? {
+              promptTokens: retryCompletion.usage.prompt_tokens,
+              completionTokens: retryCompletion.usage.completion_tokens,
+              totalTokens: retryCompletion.usage.total_tokens,
+            } : undefined,
+            timestamp: Date.now(),
+          };
+        } catch (searchError) {
+          console.error('🔍 Fallback web search failed:', searchError);
+          // Continue with original response
+        }
+      }
+      
+      // No tool calls and no fallback needed, return regular response
       const response = message?.content || 'I need a moment to process that request. Please try again.';
       const usage = completion.usage;
 
@@ -213,12 +316,25 @@ export class OpenAIProvider extends BaseAIProvider {
         timestamp: Date.now(),
       };
     } catch (error: any) {
+      // Log detailed error for debugging
+      console.error('🔍 OpenAI API Error Details:', {
+        status: error.status,
+        message: error.message,
+        response: error.response?.data,
+        baseURL: this.config.baseURL,
+        model: this.config.model
+      });
+      
       if (error.status === 429) {
         throw new Error('Rate limit exceeded. Please try again later.');
       } else if (error.status === 401) {
         throw new Error('Invalid API key for OpenAI');
       } else if (error.status === 503) {
         throw new Error('OpenAI service is temporarily unavailable');
+      } else if (error.status === 400 && error.message?.includes('tool_choice')) {
+        // Lambda Labs might not support tool_choice
+        console.log('🔍 Retrying without tool_choice parameter...');
+        throw new Error('Tool choice not supported by this model');
       }
       
       throw new Error(`OpenAI API error: ${error.message || 'Unknown error'}`);
