@@ -275,14 +275,18 @@ The current default personality ('walrus') features:
 
 2. **Configure OAuth Scopes**:
    - Navigate to "OAuth & Permissions"
-   - Under "Bot Token Scopes", add:
+   - Under "Bot Token Scopes", add ALL of these:
      - `app_mentions:read` (REQUIRED for @mentions!)
      - `chat:write` (minimum required)
-     - `channels:history`, `channels:read`
-     - `groups:history`, `groups:read`
-     - `im:history`, `im:read`
-     - `mpim:history`, `mpim:read`
-     - `commands`
+     - `channels:history` (read message history)
+     - `channels:read` (REQUIRED - see channel info)
+     - `groups:history` (read private channel history)
+     - `groups:read` (REQUIRED - see private channel info)
+     - `im:history` (read DM history)
+     - `im:read` (REQUIRED - see DM info)
+     - `mpim:history` (read group DM history)
+     - `mpim:read` (REQUIRED - see group DM info)
+     - `commands` (for slash commands)
      - `users:read` (optional, for bot info)
    - Click "Install to Workspace"
    - Copy the **Bot User OAuth Token** (xoxb-...)
@@ -322,7 +326,7 @@ The current default personality ('walrus') features:
 OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-mini, o1-preview
 ANTHROPIC_MODEL=claude-3-opus-20240229
 OPENAI_MAX_TOKENS=1000            # Max response tokens (default: 1000)
-OPENAI_TEMPERATURE=0.7            # Creativity 0-2 (default: 0.7)
+OPENAI_TEMPERATURE=0.7            # Creativity 0-2 (default: 0.7, o1 models ignore this)
 
 # Behavior
 AI_PERSONALITY=walrus  # Default: opinionated assistant with attitude

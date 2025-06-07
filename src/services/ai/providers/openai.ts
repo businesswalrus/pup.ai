@@ -109,11 +109,15 @@ export class OpenAIProvider extends BaseAIProvider {
       const completionParams: any = {
         model: this.config.model!,  // Config always has model from app.ts defaults
         messages: messages as any,
-        temperature: this.config.temperature ?? 0.7,
         user: context.userId,
         tools: needsWebSearch ? tools : undefined,
         tool_choice: needsWebSearch ? 'required' : undefined,
       };
+      
+      // o1 models only support temperature=1
+      if (!isO1Model) {
+        completionParams.temperature = this.config.temperature ?? 0.7;
+      }
       
       if (isO1Model) {
         completionParams.max_completion_tokens = this.config.maxTokens || 1000;
@@ -145,9 +149,13 @@ export class OpenAIProvider extends BaseAIProvider {
         const followUpParams: any = {
           model: this.config.model!,  // Config always has model from app.ts defaults
           messages: messages as any,
-          temperature: this.config.temperature ?? 0.7,
           user: context.userId,
         };
+        
+        // o1 models only support temperature=1
+        if (!isO1Model) {
+          followUpParams.temperature = this.config.temperature ?? 0.7;
+        }
         
         if (isO1Model) {
           followUpParams.max_completion_tokens = this.config.maxTokens || 1000;
