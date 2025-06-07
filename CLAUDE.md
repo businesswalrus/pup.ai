@@ -319,7 +319,7 @@ The current default personality ('walrus') features:
 **Optional AI settings in .env**:
 ```bash
 # Models (defaults shown)
-OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo
+OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-mini, o1-preview
 ANTHROPIC_MODEL=claude-3-opus-20240229
 OPENAI_MAX_TOKENS=1000            # Max response tokens (default: 1000)
 OPENAI_TEMPERATURE=0.7            # Creativity 0-2 (default: 0.7)

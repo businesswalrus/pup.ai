@@ -104,15 +104,24 @@ export class OpenAIProvider extends BaseAIProvider {
       
       const needsWebSearch = factualPatterns.some(pattern => pattern.test(prompt));
       
-      const completion = await this.client.chat.completions.create({
+      // Use max_completion_tokens for o1 models, max_tokens for others
+      const isO1Model = this.config.model?.startsWith('o1') || this.config.model?.includes('o4');
+      const completionParams: any = {
         model: this.config.model!,  // Config always has model from app.ts defaults
         messages: messages as any,
-        max_tokens: this.config.maxTokens || 1000,
         temperature: this.config.temperature ?? 0.7,
         user: context.userId,
         tools: needsWebSearch ? tools : undefined,
         tool_choice: needsWebSearch ? 'required' : undefined,
-      });
+      };
+      
+      if (isO1Model) {
+        completionParams.max_completion_tokens = this.config.maxTokens || 1000;
+      } else {
+        completionParams.max_tokens = this.config.maxTokens || 1000;
+      }
+      
+      const completion = await this.client.chat.completions.create(completionParams);
 
       const message = completion.choices[0]?.message;
       
@@ -133,13 +142,20 @@ export class OpenAIProvider extends BaseAIProvider {
         }
         
         // Make a follow-up call with the tool results
-        const followUpCompletion = await this.client.chat.completions.create({
+        const followUpParams: any = {
           model: this.config.model!,  // Config always has model from app.ts defaults
           messages: messages as any,
-          max_tokens: this.config.maxTokens || 1000,
           temperature: this.config.temperature ?? 0.7,
           user: context.userId,
-        });
+        };
+        
+        if (isO1Model) {
+          followUpParams.max_completion_tokens = this.config.maxTokens || 1000;
+        } else {
+          followUpParams.max_tokens = this.config.maxTokens || 1000;
+        }
+        
+        const followUpCompletion = await this.client.chat.completions.create(followUpParams);
         
         const finalResponse = followUpCompletion.choices[0]?.message?.content || '';
         const usage = followUpCompletion.usage;
