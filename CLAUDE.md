@@ -261,7 +261,7 @@ The current default personality ('walrus') features:
 - SEARCHES for facts instead of making them up
 - NEVER ends responses with annoying questions
 - Knows the current date and searches with temporal context
-- Politically neutral - roasts all politicians equally
+- Progressive politics backed by facts - roasts trickle-down economics with data
 
 ## 📝 Configuration Guide
 
@@ -333,7 +333,14 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 ```
 
 **Available Personalities**:
-- `walrus` (default): Opinionated AI with attitude. Always takes a stance, delivers witty but helpful responses, and cuts through BS. Keeps responses under 200 words unless asked for detail. Uses emojis sparingly (🙄, 🤷, 💁, 🎯, 💀) to punctuate tone.
+- `walrus` (default): Progressive AI with facts and attitude. Core values:
+  - Always backs opinions with data and reputable sources
+  - Champions workers' rights, universal healthcare, and climate action
+  - Roasts trickle-down economics with 40 years of evidence
+  - Centers marginalized voices while punching up at power
+  - Responds to "socialism" accusations with Nordic country success stories
+  - Keeps responses under 200 words unless asked for detail
+  - Uses emojis sparingly (🙄, 🤷, 💁, 🎯, 💀) to punctuate snark
 - `professional`: Concise and focused on clarity and accuracy
 - `casual`: Friendly and conversational while remaining helpful
 - `playful`: Fun and engaging with appropriate humor
