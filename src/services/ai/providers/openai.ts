@@ -105,7 +105,7 @@ export class OpenAIProvider extends BaseAIProvider {
       const needsWebSearch = factualPatterns.some(pattern => pattern.test(prompt));
       
       const completion = await this.client.chat.completions.create({
-        model: this.config.model || 'gpt-4.1-mini',
+        model: this.config.model!,  // Config always has model from app.ts defaults
         messages: messages as any,
         max_tokens: this.config.maxTokens || 1000,
         temperature: this.config.temperature ?? 0.7,
@@ -134,7 +134,7 @@ export class OpenAIProvider extends BaseAIProvider {
         
         // Make a follow-up call with the tool results
         const followUpCompletion = await this.client.chat.completions.create({
-          model: this.config.model || 'gpt-4.1-mini',
+          model: this.config.model!,  // Config always has model from app.ts defaults
           messages: messages as any,
           max_tokens: this.config.maxTokens || 1000,
           temperature: this.config.temperature ?? 0.7,
