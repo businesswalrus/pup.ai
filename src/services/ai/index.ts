@@ -228,6 +228,7 @@ export class AIService {
     available: boolean;
     providers: Record<string, boolean>;
     activeProvider: string | null;
+    activeModel: string | null;
     cacheStats: any;
   } {
     const providerStatus: Record<string, boolean> = {};
@@ -240,6 +241,7 @@ export class AIService {
       available: this.activeProvider !== null,
       providers: providerStatus,
       activeProvider: this.activeProvider?.name || null,
+      activeModel: this.activeProvider?.getModel() || null,
       cacheStats: this.cache.getStats()
     };
   }

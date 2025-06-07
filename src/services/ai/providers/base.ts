@@ -7,6 +7,10 @@ export abstract class BaseAIProvider implements AIProvider {
   constructor(config: AIProviderConfig) {
     this.config = config;
   }
+  
+  getModel(): string {
+    return this.config.model || 'unknown';
+  }
 
   abstract generateResponse(prompt: string, context: AIContext): Promise<AIResponse>;
 

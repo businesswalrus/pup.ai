@@ -159,6 +159,7 @@ export class PupAI {
                 text: `🐶 pup.ai status:\n` +
                   `• AI Service: ${health.available ? '✅ Active' : '❌ Unavailable'}\n` +
                   `• Active Provider: ${health.activeProvider || 'None'}\n` +
+                  `• Active Model: ${health.activeModel || 'None'}\n` +
                   `• Available Providers: ${Object.entries(health.providers).map(([name, status]) => 
                     `${name} ${status ? '✅' : '❌'}`).join(', ')}\n` +
                   `• Cache Stats: ${health.cacheStats.size}/${health.cacheStats.maxSize} entries`
@@ -436,7 +437,12 @@ export class PupAI {
       month: 'long', 
       day: 'numeric' 
     });
+    
+    // Add model info so the AI knows what it's running on
+    const modelName = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    
     prompt += `\n\nIMPORTANT: Today's date is ${currentDate}. When searching for current events or recent information, always include appropriate date context in your searches.`;
+    prompt += `\n\nYou are running on the ${modelName} model. Do not claim to be any other model.`;
     
     return prompt;
   }

@@ -40,6 +40,7 @@ export interface AIProvider {
   generateResponse(prompt: string, context: AIContext): Promise<AIResponse>;
   validateConfig(): boolean;
   isAvailable(): boolean;
+  getModel(): string;
 }
 
 export interface CacheOptions {
