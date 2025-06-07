@@ -7,7 +7,9 @@
 **Project**: pup.ai - Intelligent Slack Bot  
 **Purpose**: Personal AI assistant that responds to owner's Slack messages with intelligent, context-aware responses  
 **Tech Stack**: TypeScript, Node.js, Slack Bolt.js, OpenAI/Anthropic APIs  
-**Status**: AI integration complete (Phase 1 finished)
+**Status**: Deployed to production on Railway (Phase 1 & Deployment complete)  
+**GitHub**: https://github.com/businesswalrus/pup.ai  
+**Production**: https://pupai-production.up.railway.app (Running 24/7 with continuous deployment)
 
 ## 📍 Current State
 
@@ -25,8 +27,13 @@
 - [x] Slash commands for AI management (/pup status, clear, provider, help)
 - [x] Automatic provider fallback on errors
 - [x] Thread-aware responses
-- [x] NBA stats expert personality with know-it-all walrus persona
-- [x] Web search capability via OpenAI function calling (for NBA stats lookup)
+- [x] Customizable AI personalities (default: opinionated assistant with attitude)
+- [x] Web search capability via OpenAI function calling
+- [x] GitHub repository created and code pushed
+- [x] Railway deployment configured for 24/7 operation
+- [x] HTTP mode production deployment (no socket mode)
+- [x] Continuous deployment from GitHub main branch
+- [x] Health check endpoint for monitoring
 
 ### 🚧 In Progress
 - [ ] Test suite for AI service
@@ -70,10 +77,10 @@
    - ✅ Configurable models via OPENAI_MODEL and ANTHROPIC_MODEL
 
 3. **Behavioral Preferences** (configured via .env):
-   - ✅ Response personality via AI_PERSONALITY (professional/casual/playful)
+   - ✅ Response personality via AI_PERSONALITY (walrus/professional/casual/playful)
    - ✅ Always responds in threads when applicable
    - ✅ Maximum response length via AI_MAX_RESPONSE_LENGTH
-   - ✅ Context persists within channels/DMs (10 messages)
+   - ✅ Context persists within channels/DMs (50 messages)
 
 4. **Feature Priorities**:
    - ❓ Most important features to implement first?
@@ -99,10 +106,18 @@ class AIService {
 ```
 
 ### Context Management
-- Store last 10 messages per channel
+- Store last 50 messages per channel
 - Track user preferences in memory (later: database)
 - Include channel type (DM vs public) in context
 - Thread awareness for contextual responses
+
+### Personality System
+The bot's personality is highly customizable and defined in `app.ts:createSystemPrompt()`:
+- System prompts are injected via `context.metadata.systemPrompt`
+- Different prompt templates for different contexts (default, DM, technical, summary, code_review)
+- Personality affects response style, length, and emoji usage
+- Easy to add new personalities or modify existing ones
+- The personality system is designed to be easily changed without breaking other functionality
 
 ### Caching Strategy
 - LRU cache with 5-minute TTL
@@ -220,6 +235,30 @@ When continuing development:
 4. Review any failing tests
 5. Continue from "Immediate Next Steps"
 
+## 🎭 Modifying the Personality System
+
+To change or add personalities:
+1. Edit `src/app.ts` → `createSystemPrompt()` method (starts around line 333)
+2. Add new personality cases in the switch statement
+3. Update the default personality by changing line 334: `const personality = this.config.aiPersonality || 'walrus';`
+4. Test the new personality with different message types
+5. Update this documentation to reflect the changes
+
+Example of adding a new personality:
+```typescript
+case 'pirate':
+  systemPrompt = `You are a salty pirate captain who tells it like it is. Respond with nautical terms and pirate speak, but remain helpful. Keep responses concise and full of maritime attitude.`;
+  break;
+```
+
+The current default personality ('walrus') features:
+- Always has strong opinions and backs them up
+- Helpfully rude but never malicious
+- Cuts through fluff and gives it straight
+- Uses witty roasts and playful sarcasm
+- Adapts tone to channel context
+- Respects boundaries while keeping edge
+
 ## 📝 Configuration Guide
 
 ### 🤖 Slack App Setup (Required First)
@@ -280,21 +319,27 @@ OPENAI_MODEL=gpt-4-turbo-preview
 ANTHROPIC_MODEL=claude-3-opus-20240229
 
 # Behavior
-AI_PERSONALITY=walrus  # NBA stats expert walrus (default)
-AI_USE_EMOJIS=true
-AI_MAX_RESPONSE_LENGTH=300  # words
+AI_PERSONALITY=walrus  # Default: opinionated assistant with attitude
+AI_USE_EMOJIS=true     # Emoji usage (walrus personality forces this to true)
+AI_MAX_RESPONSE_LENGTH=200  # Target response length in words
 
-# Web Search (optional - for real-time NBA stats lookup)
+# Web Search (optional - for real-time information lookup)
 GOOGLE_API_KEY=your-google-api-key
 GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 ```
 
+**Available Personalities**:
+- `walrus` (default): Opinionated AI with attitude. Always takes a stance, delivers witty but helpful responses, and cuts through BS. Keeps responses under 200 words unless asked for detail. Uses emojis sparingly (🙄, 🤷, 💁, 🎯, 💀) to punctuate tone.
+- `professional`: Concise and focused on clarity and accuracy
+- `casual`: Friendly and conversational while remaining helpful
+- `playful`: Fun and engaging with appropriate humor
+- Custom personalities can be added by modifying the `createSystemPrompt()` method in `app.ts`
+
 **Web Search Feature**:
-- When using OpenAI provider, the bot can search for real-time NBA stats
-- Automatically searches Basketball Reference when asked about specific stats
-- Falls back to fallback URLs if Google API not configured
-- Provides citations when requested
-- Never makes up statistics - admits when unsure
+- Available when using OpenAI provider with function calling
+- Can search for real-time information on any topic
+- Falls back to direct web URLs if Google API not configured
+- Integrated into AI responses automatically when needed
 
 ### 🎮 Available Commands
 
@@ -311,8 +356,48 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - Has access to last 50 messages for context
 - Collects all channel messages silently for context
 
+## 🚀 Deployment Information
+
+### Production Environment
+- **Platform**: Railway
+- **URL**: https://pupai-production.up.railway.app
+- **Health Check**: https://pupai-production.up.railway.app/health
+- **Deployment**: Automatic on push to main branch
+- **Mode**: HTTP mode (not socket mode)
+
+### Local Development
+- **Mode**: Socket mode (with SLACK_APP_TOKEN in .env)
+- **Testing**: Use ngrok for HTTP mode testing
+- **Commands**: 
+  - `npm run dev` - Start in development
+  - `npm run build` - Build for production
+  - `npm test` - Run tests
+
+### Environment Variables
+**Production (Railway)**:
+- `SLACK_BOT_TOKEN` - Bot OAuth token
+- `SLACK_SIGNING_SECRET` - Request validation
+- `MY_USER_ID` - Owner's Slack user ID
+- `OPENAI_API_KEY` - OpenAI API access
+- **NOT** `SLACK_APP_TOKEN` - Omit to force HTTP mode
+
+**Local Development (.env)**:
+- All production variables PLUS
+- `SLACK_APP_TOKEN` - Enables socket mode for local dev
+
+### Continuous Deployment
+1. Push to main → Railway auto-builds
+2. TypeScript compiled → Docker image created
+3. Health check verified → Traffic switched
+4. Old instance terminated
+
+### Monitoring
+- Railway dashboard for logs and metrics
+- Health endpoint for uptime monitoring
+- Slack app insights for usage stats
+
 ---
 
-**Last Updated**: 2024-01-20  
+**Last Updated**: 2025-01-07  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Slack Setup & Configuration Complete
+**Session**: Personality Update - Replaced wellness influencer with opinionated assistant personality
