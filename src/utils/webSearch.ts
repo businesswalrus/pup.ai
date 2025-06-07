@@ -86,8 +86,13 @@ export class WebSearchService {
       return results.slice(0, options.numResults || 5);
     }
 
-    // For other queries, return empty array (would need actual search implementation)
-    return [];
+    // For other queries, provide a helpful message about needing Google API
+    console.warn('Non-NBA web search attempted without Google API configured');
+    return [{
+      title: 'Web search requires Google API configuration',
+      url: 'https://developers.google.com/custom-search/v1/introduction',
+      snippet: `To search for "${query}", please configure GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID in your environment variables.`
+    }];
   }
 
   async fetchPage(url: string): Promise<string> {

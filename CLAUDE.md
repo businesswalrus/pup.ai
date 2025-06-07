@@ -28,7 +28,7 @@
 - [x] Automatic provider fallback on errors
 - [x] Thread-aware responses
 - [x] Customizable AI personalities (default: opinionated assistant with attitude)
-- [x] Web search capability via OpenAI function calling
+- [x] Web search capability via OpenAI function calling (auto-triggered for factual queries)
 - [x] GitHub repository created and code pushed
 - [x] Railway deployment configured for 24/7 operation
 - [x] HTTP mode production deployment (no socket mode)
@@ -339,9 +339,17 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 **Web Search Feature**:
 - Available when using OpenAI provider with function calling
+- Automatically triggered for factual queries (sports scores, recent events, news, facts)
+- REQUIRED for queries matching factual patterns - prevents hallucination
 - Can search for real-time information on any topic
 - Falls back to direct web URLs if Google API not configured
 - Integrated into AI responses automatically when needed
+- Pattern detection includes:
+  - Sports queries (scores, games, results)
+  - Time-sensitive info (today, yesterday, recent, latest)
+  - Factual questions (what, who, when, where)
+  - News and current events
+  - Prices, weather, stock info
 
 ### 🎮 Available Commands
 

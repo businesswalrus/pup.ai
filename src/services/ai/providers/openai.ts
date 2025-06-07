@@ -29,6 +29,23 @@ export class OpenAIProvider extends BaseAIProvider {
         {
           type: 'function' as const,
           function: {
+            name: 'web_search',
+            description: 'Search the web for current information, facts, news, or any real-time data. Use this whenever you need factual information.',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'The search query (e.g., "Alcaraz vs Musetti Australian Open 2025", "latest Tesla stock price", "weather in NYC today")'
+                }
+              },
+              required: ['query']
+            }
+          }
+        },
+        {
+          type: 'function' as const,
+          function: {
             name: 'search_nba_stats',
             description: 'Search for NBA player or team statistics from reliable sources like Basketball Reference',
             parameters: {
@@ -66,8 +83,26 @@ export class OpenAIProvider extends BaseAIProvider {
         }
       ];
 
-      // Check if the prompt is NBA-related to decide whether to include tools
-      const isNBARelated = /nba|basketball|player|team|stats|points|rebounds|assists/i.test(prompt);
+      // Check if the prompt needs web search for factual information
+      const factualPatterns = [
+        // Sports patterns
+        /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf)\b/i,
+        /\b(score|game|match|win|won|lost|beat|defeat|result|outcome)\b/i,
+        /\b(player|team|athlete|stats|points|rebounds|assists|goals|yards)\b/i,
+        // Time-sensitive patterns
+        /\b(today|yesterday|this week|last week|recently|latest|current|now|just|update)\b/i,
+        /\b(happened|happening|occurred|took place)\b/i,
+        // Factual query patterns
+        /^(what|who|when|where|how|did|is|was|are|were)\b.*\?/i,
+        /\b(fact|verify|check|confirm|true|false|actually|really)\b/i,
+        // News and events
+        /\b(news|announcement|released|announced|reported|breaking)\b/i,
+        // Specific fact requests
+        /\b(price|cost|worth|value|stock|market|weather|temperature)\b/i,
+        /vs\.|versus|against/i
+      ];
+      
+      const needsWebSearch = factualPatterns.some(pattern => pattern.test(prompt));
       
       const completion = await this.client.chat.completions.create({
         model: this.config.model || 'gpt-4.1-mini',
@@ -75,8 +110,8 @@ export class OpenAIProvider extends BaseAIProvider {
         max_tokens: this.config.maxTokens || 1000,
         temperature: this.config.temperature ?? 0.7,
         user: context.userId,
-        tools: isNBARelated ? tools : undefined,
-        tool_choice: isNBARelated ? 'auto' : undefined,
+        tools: needsWebSearch ? tools : undefined,
+        tool_choice: needsWebSearch ? 'required' : undefined,
       });
 
       const message = completion.choices[0]?.message;
@@ -161,6 +196,18 @@ export class OpenAIProvider extends BaseAIProvider {
         let result;
         
         switch (functionName) {
+          case 'web_search':
+            const generalSearchResults = await this.webSearch.search(args.query);
+            result = {
+              success: true,
+              results: generalSearchResults.map(r => ({
+                title: r.title,
+                url: r.url,
+                snippet: r.snippet
+              }))
+            };
+            break;
+            
           case 'search_nba_stats':
             const searchResults = await searchNBAStats(args.query, args.statType);
             result = {
