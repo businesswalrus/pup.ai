@@ -1,0 +1,318 @@
+# CLAUDE.md - pup.ai Development Guide
+
+> This is a living document for AI agents working on pup.ai. It contains all context, requirements, and guidelines needed for autonomous development.
+
+## 🎯 Project Overview
+
+**Project**: pup.ai - Intelligent Slack Bot  
+**Purpose**: Personal AI assistant that responds to owner's Slack messages with intelligent, context-aware responses  
+**Tech Stack**: TypeScript, Node.js, Slack Bolt.js, OpenAI/Anthropic APIs  
+**Status**: AI integration complete (Phase 1 finished)
+
+## 📍 Current State
+
+### ✅ Completed
+- [x] TypeScript project setup with strict typing
+- [x] Basic Slack bot responding only to @mentions
+- [x] Project structure with services pattern
+- [x] Development tooling (ESLint, Prettier, Jest)
+- [x] Environment configuration system
+- [x] Git repository initialized
+- [x] AI Service implementation with OpenAI and Anthropic providers
+- [x] Context management system (50 message history)
+- [x] Prompt engineering templates (5 built-in templates)
+- [x] Response caching with LRU cache (5-minute TTL)
+- [x] Slash commands for AI management (/pup status, clear, provider, help)
+- [x] Automatic provider fallback on errors
+- [x] Thread-aware responses
+- [x] NBA stats expert personality with know-it-all walrus persona
+- [x] Web search capability via OpenAI function calling (for NBA stats lookup)
+
+### 🚧 In Progress
+- [ ] Test suite for AI service
+- [ ] Plugin system architecture
+- [ ] Workflow automation
+
+### 📂 Project Structure
+```
+/Users/cody/Desktop/tusk/pup-ai/
+├── src/
+│   ├── app.ts              # Main PupAI class
+│   ├── index.ts            # Entry point
+│   ├── config/index.ts     # Configuration management
+│   ├── services/           # Core services
+│   │   ├── ai/            # AI integration (COMPLETED)
+│   │   ├── plugins/       # Plugin system (FUTURE)
+│   │   ├── workflows/     # Automation (FUTURE)
+│   │   └── analytics/     # Metrics (FUTURE)
+│   ├── middleware/         # Express/Bolt middleware
+│   ├── utils/             # Utility functions
+│   ├── types/             # TypeScript type definitions
+│   └── commands/          # Slash command handlers
+├── tests/                 # Test suites
+├── plugins/              # Plugin modules
+└── planning.md           # Overall system plan
+```
+
+## 🔑 Requirements From User
+
+### Essential Information Needed:
+1. **Slack Credentials** (in .env):
+   - ✅ SLACK_BOT_TOKEN
+   - ✅ SLACK_SIGNING_SECRET  
+   - ✅ MY_USER_ID
+   - ✅ SLACK_APP_TOKEN (optional, for socket mode)
+
+2. **AI Provider Credentials** (configured via .env):
+   - ✅ OPENAI_API_KEY (optional)
+   - ✅ ANTHROPIC_API_KEY (optional)
+   - ✅ Auto-detects available providers
+   - ✅ Configurable models via OPENAI_MODEL and ANTHROPIC_MODEL
+
+3. **Behavioral Preferences** (configured via .env):
+   - ✅ Response personality via AI_PERSONALITY (professional/casual/playful)
+   - ✅ Always responds in threads when applicable
+   - ✅ Maximum response length via AI_MAX_RESPONSE_LENGTH
+   - ✅ Context persists within channels/DMs (10 messages)
+
+4. **Feature Priorities**:
+   - ❓ Most important features to implement first?
+   - ❓ Any specific commands or workflows needed?
+   - ❓ Integration with other services (GitHub, Jira, etc.)?
+
+## 🏗️ Architecture Decisions
+
+### AI Service Design
+```typescript
+interface AIProvider {
+  name: string;
+  generateResponse(prompt: string, context: Context): Promise<AIResponse>;
+  validateConfig(): boolean;
+}
+
+class AIService {
+  private providers: Map<string, AIProvider>;
+  private activeProvider: AIProvider;
+  private cache: LRUCache<string, AIResponse>;
+  private contextManager: ContextManager;
+}
+```
+
+### Context Management
+- Store last 10 messages per channel
+- Track user preferences in memory (later: database)
+- Include channel type (DM vs public) in context
+- Thread awareness for contextual responses
+
+### Caching Strategy
+- LRU cache with 5-minute TTL
+- Cache key: hash(message + context)
+- Skip cache for time-sensitive queries
+- Maximum 1000 cached responses
+
+### Error Handling
+- Graceful fallbacks if AI fails
+- Rate limit handling with exponential backoff
+- User-friendly error messages
+- Comprehensive logging for debugging
+
+## 📋 Development Guidelines
+
+### Code Standards
+1. **TypeScript**: Strict mode, no `any` types
+2. **Async/Await**: No callbacks, use promises
+3. **Error Handling**: Try-catch in all async functions
+4. **Logging**: Structured logs with context
+5. **Testing**: Minimum 80% coverage
+
+### Git Workflow
+1. Work directly on main (single developer)
+2. Commit after each working feature
+3. Descriptive commit messages
+4. Tag releases (v0.1.0, v0.2.0, etc.)
+
+### Security
+- Never log tokens or API keys
+- Validate all user input
+- Sanitize AI responses
+- Rate limit per user
+- Audit log sensitive operations
+
+## 🧪 Testing Strategy
+
+### Unit Tests
+- Test each service in isolation
+- Mock external dependencies
+- Test error scenarios
+- Validate type safety
+
+### Integration Tests
+- Test Slack event handling
+- Test AI provider switching
+- Test caching behavior
+- Test context management
+
+### Manual Testing Checklist
+- [ ] Bot responds only to MY_USER_ID
+- [ ] Responses appear in correct thread
+- [ ] AI responses are contextual
+- [ ] Cache is working (check response times)
+- [ ] Errors are handled gracefully
+- [ ] Rate limiting works
+
+## 🐛 Known Issues & Solutions
+
+### Issue: TypeScript ESLint config with new flat config
+**Solution**: Using eslint.config.js with flat config format
+
+### Issue: Slack socket mode vs HTTP mode
+**Solution**: Support both, auto-detect based on SLACK_APP_TOKEN presence
+
+## 📊 Progress Tracking
+
+### Phase 1: AI Integration (COMPLETED ✅)
+- [x] Step 1: Create AI service structure
+- [x] Step 2: Implement OpenAI provider
+- [x] Step 3: Implement Anthropic provider  
+- [x] Step 4: Build context manager
+- [x] Step 5: Create prompt templates
+- [x] Step 6: Add response caching
+- [x] Step 7: Update app.ts integration
+- [x] Step 8: TypeScript compilation passes
+
+### Success Metrics
+- Response time: <2s for AI generation
+- Cache hit rate: >30%
+- Error rate: <1%
+- Context relevance: Manually validated
+
+## 🚀 Immediate Next Steps
+
+### Phase 2: Enhanced Features
+1. **Create comprehensive test suite**:
+   - Unit tests for AI providers
+   - Integration tests for context management
+   - Cache behavior tests
+   - Mock Slack event tests
+
+2. **Add advanced AI features**:
+   - Streaming responses for long generations
+   - File/code analysis capabilities
+   - Custom instruction sets per channel
+   - User preference persistence
+
+3. **Implement plugin system**:
+   - Plugin interface definition
+   - Plugin loader/manager
+   - Example plugins (GitHub, Jira, etc.)
+
+4. **Add workflow automation**:
+   - Scheduled tasks
+   - Triggered workflows
+   - Multi-step automations
+
+## 🤝 Handoff Notes
+
+When continuing development:
+1. Read this file first
+2. Check current git status
+3. Run `npm install` if needed
+4. Review any failing tests
+5. Continue from "Immediate Next Steps"
+
+## 📝 Configuration Guide
+
+### 🤖 Slack App Setup (Required First)
+
+1. **Create Slack App**:
+   - Go to https://api.slack.com/apps
+   - Click "Create New App" → "From scratch"
+   - Name: "pup.ai" (or your preference)
+   - Select your workspace
+
+2. **Configure OAuth Scopes**:
+   - Navigate to "OAuth & Permissions"
+   - Under "Bot Token Scopes", add:
+     - `app_mentions:read` (REQUIRED for @mentions!)
+     - `chat:write` (minimum required)
+     - `channels:history`, `channels:read`
+     - `groups:history`, `groups:read`
+     - `im:history`, `im:read`
+     - `mpim:history`, `mpim:read`
+     - `commands`
+     - `users:read` (optional, for bot info)
+   - Click "Install to Workspace"
+   - Copy the **Bot User OAuth Token** (xoxb-...)
+
+3. **Get Credentials**:
+   - From "Basic Information", copy **Signing Secret**
+   - Get your Slack User ID (type `<@` in Slack and select yourself)
+
+4. **Enable Socket Mode** (for local development):
+   - Go to "Socket Mode" → Enable
+   - Generate token → Copy **App-Level Token** (xapp-...)
+   - Go to "Event Subscriptions" → Enable
+   - Subscribe to bot events:
+     - `message.channels`
+     - `message.groups`
+     - `message.im`
+     - `message.mpim`
+
+5. **Create .env file**:
+   ```bash
+   # Required Slack credentials
+   SLACK_BOT_TOKEN=xoxb-your-bot-token
+   SLACK_SIGNING_SECRET=your-signing-secret
+   MY_USER_ID=U-your-user-id
+   SLACK_APP_TOKEN=xapp-your-app-token  # For socket mode
+   
+   # AI Provider (at least one required)
+   OPENAI_API_KEY=sk-your-key-here
+   ANTHROPIC_API_KEY=sk-ant-your-key-here
+   ```
+
+### 🧠 AI Configuration
+
+**Optional AI settings in .env**:
+```bash
+# Models (defaults shown)
+OPENAI_MODEL=gpt-4-turbo-preview
+ANTHROPIC_MODEL=claude-3-opus-20240229
+
+# Behavior
+AI_PERSONALITY=walrus  # NBA stats expert walrus (default)
+AI_USE_EMOJIS=true
+AI_MAX_RESPONSE_LENGTH=300  # words
+
+# Web Search (optional - for real-time NBA stats lookup)
+GOOGLE_API_KEY=your-google-api-key
+GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
+```
+
+**Web Search Feature**:
+- When using OpenAI provider, the bot can search for real-time NBA stats
+- Automatically searches Basketball Reference when asked about specific stats
+- Falls back to fallback URLs if Google API not configured
+- Provides citations when requested
+- Never makes up statistics - admits when unsure
+
+### 🎮 Available Commands
+
+**Slash commands** (after adding to Slack app):
+- `/pup status` - Check AI service health
+- `/pup clear cache` - Clear response cache
+- `/pup clear context` - Reset conversation
+- `/pup provider [openai|anthropic]` - Switch providers
+- `/pup help` - Show all commands
+
+**Bot responds to**:
+- @mentions in channels (responds in main channel)
+- Direct messages (all messages in DMs)
+- Has access to last 50 messages for context
+- Collects all channel messages silently for context
+
+---
+
+**Last Updated**: 2024-01-20  
+**Updated By**: Claude (pup.ai agent)  
+**Session**: Slack Setup & Configuration Complete
