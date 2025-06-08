@@ -462,10 +462,37 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 ## 🔧 Recent Updates
 
+### Critical Web Search Fix (2025-01-13) 
+Fixed web search completely failing for obvious queries:
+
+1. **Web Search Detection Overhaul**:
+   - Rewrote patterns from scratch to catch all sports/time queries
+   - Now properly triggers for: "Are there nba finals tonight?", "Who won Alcaraz musetti yesterday?"
+   - Comprehensive pattern matching for sports, weather, news, events
+   - Tested all common query formats to ensure detection
+
+2. **Force Tool Usage**:
+   - OpenAI: Uses `tool_choice` to force web search when needed
+   - Lambda Labs: Adds system message encouraging tool use
+   - Retry logic if Lambda Labs rejects tool_choice parameter
+   - No more hallucinated sports scores or made-up results
+
+3. **Response Processing**:
+   - Strips `<think>` and `<thinking>` tags from Deepseek responses
+   - Users never see internal reasoning process
+   - Clean output with comprehensive logging at each stage
+
+4. **Enhanced Logging**:
+   - 🎯 Web search detection logs
+   - 🤖 Lambda Labs request/response debugging
+   - 🧹 Deepseek response processing logs
+   - 📤 Final output to Slack logs
+   - 🔍 Web search execution and error logs
+
 ### Deepseek Integration Fixes (2025-01-13)
 Major improvements to Lambda Labs/Deepseek integration for more natural behavior:
 
-1. **Smarter Web Search Detection**:
+1. **Smarter Web Search Detection** (Note: This was too restrictive - see fix above):
    - Removed overly broad patterns that triggered on almost any question
    - Now only searches for genuinely time-sensitive queries with clear context
    - Examples that DO trigger: "who won the game last night", "current weather in NYC"
@@ -510,4 +537,4 @@ Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
 
 **Last Updated**: 2025-01-13  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Fix Deepseek Integration Issues - Made bot behavior more natural and accurate
+**Session**: Critical Web Search Fix - Bot now properly searches instead of hallucinating
