@@ -462,6 +462,24 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 ## 🔧 Recent Updates
 
+### NBA Finals Hallucination Fix (2025-01-13)
+Fixed bot claiming Celtics vs Mavericks instead of correct Pacers vs Thunder:
+
+1. **Web Search Pattern Fixes**:
+   - "When's the next nba finals game" now triggers search (was missing)
+   - Added patterns for "next game", "when is", common phrasings
+   - ANY query with "nba finals" forces web search
+
+2. **Force Model to Use Search Results**:
+   - Explicit system prompts: "Use ONLY search results"
+   - "DO NOT make up teams like Celtics vs Mavericks"
+   - Follow-up message after search reinforces this
+
+3. **Better Search Logging**:
+   - Logs actual search results for debugging
+   - Shows what teams/info the search found
+   - Helps verify correct information is available
+
 ### Emergency API Response Fix (2025-01-13)
 Fixed critical crash: "Cannot read properties of undefined (reading '0')":
 
@@ -555,4 +573,4 @@ Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
 
 **Last Updated**: 2025-01-13  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Critical Web Search Fix - Bot now properly searches instead of hallucinating
+**Session**: NBA Finals Hallucination Fix - Bot now reports Pacers vs Thunder correctly
