@@ -462,6 +462,24 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 ## 🔧 Recent Updates
 
+### Emergency API Response Fix (2025-01-13)
+Fixed critical crash: "Cannot read properties of undefined (reading '0')":
+
+1. **Defensive Response Handling**:
+   - Added checks for all API responses before accessing choices[0]
+   - Handles cases where Lambda Labs returns invalid response structures
+   - Prevents crashes when responses don't have expected format
+
+2. **Improved Error Detection**:
+   - Better detection of tool_choice failures
+   - Checks multiple error patterns (not just "tool_choice" in message)
+   - More robust retry logic with proper error handling
+
+3. **Enhanced Debugging**:
+   - Logs API call parameters before each request
+   - Tracks message array modifications
+   - Better error details when retries fail
+
 ### Critical Web Search Fix (2025-01-13) 
 Fixed web search completely failing for obvious queries:
 
