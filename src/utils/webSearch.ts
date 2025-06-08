@@ -16,10 +16,13 @@ export class WebSearchService {
     this.searchEngineId = process.env.GOOGLE_SEARCH_ENGINE_ID;
   }
 
-  async search(query: string, options: {
-    numResults?: number;
-    site?: string;
-  } = {}): Promise<WebSearchResult[]> {
+  async search(
+    query: string,
+    options: {
+      numResults?: number;
+      site?: string;
+    } = {}
+  ): Promise<WebSearchResult[]> {
     // If no Google API configured, use a simple web scraping approach
     if (!this.apiKey || !this.searchEngineId) {
       return this.fallbackSearch(query, options);
@@ -32,62 +35,67 @@ export class WebSearchService {
       const timeSensitivePatterns = [
         /\b(today|yesterday|recent|latest|current|now|this week|last week)\b/i,
         /\b(news|update|happening|announcement)\b/i,
-        /what'?s (going on|happening|new)/i
+        /what'?s (going on|happening|new)/i,
       ];
-      
-      if (timeSensitivePatterns.some(pattern => pattern.test(query))) {
+
+      if (timeSensitivePatterns.some((pattern) => pattern.test(query))) {
         const currentYear = new Date().getFullYear();
         const currentMonth = new Date().toLocaleDateString('en-US', { month: 'long' });
         enhancedQuery = `${query} ${currentMonth} ${currentYear}`;
       }
-      
+
       const params = {
         key: this.apiKey,
         cx: this.searchEngineId,
         q: options.site ? `site:${options.site} ${enhancedQuery}` : enhancedQuery,
         num: options.numResults || 5,
         dateRestrict: 'd30', // Only results from last 30 days
-        sort: 'date' // Sort by date, most recent first
+        sort: 'date', // Sort by date, most recent first
       };
 
       const response = await axios.get(url, { params });
-      
-      return response.data.items?.map((item: any) => ({
-        title: item.title,
-        url: item.link,
-        snippet: item.snippet
-      })) || [];
+
+      return (
+        response.data.items?.map((item: any) => ({
+          title: item.title,
+          url: item.link,
+          snippet: item.snippet,
+        })) || []
+      );
     } catch (error) {
       console.error('Google search error:', error);
       return this.fallbackSearch(query, options);
     }
   }
 
-  private async fallbackSearch(query: string, options: {
-    numResults?: number;
-    site?: string;
-  } = {}): Promise<WebSearchResult[]> {
+  private async fallbackSearch(
+    query: string,
+    options: {
+      numResults?: number;
+      site?: string;
+    } = {}
+  ): Promise<WebSearchResult[]> {
     // For NBA stats, we can directly construct Basketball Reference URLs
     if (query.toLowerCase().includes('nba') || query.toLowerCase().includes('basketball')) {
       const results: WebSearchResult[] = [];
-      
+
       // Common NBA stats sites
       const sites = [
         {
           name: 'Basketball Reference',
           baseUrl: 'https://www.basketball-reference.com',
-          searchPath: '/search/search.fcgi?search='
+          searchPath: '/search/search.fcgi?search=',
         },
         {
           name: 'NBA.com Stats',
           baseUrl: 'https://www.nba.com/stats',
-          searchPath: '/search?q='
+          searchPath: '/search?q=',
         },
         {
           name: 'ESPN NBA',
           baseUrl: 'https://www.espn.com/nba',
-          searchPath: '/search/_/q/'
-        }
+          searchPath: '/search/_/q/',
+        },
       ];
 
       // Create search results for known NBA stats sites
@@ -95,7 +103,7 @@ export class WebSearchService {
         results.push({
           title: `${query} - ${site.name}`,
           url: `${site.baseUrl}${site.searchPath}${encodeURIComponent(query)}`,
-          snippet: `Search for "${query}" on ${site.name}`
+          snippet: `Search for "${query}" on ${site.name}`,
         });
       }
 
@@ -104,20 +112,22 @@ export class WebSearchService {
 
     // For other queries, provide a helpful message about needing Google API
     console.warn('Non-NBA web search attempted without Google API configured');
-    return [{
-      title: 'Web search requires Google API configuration',
-      url: 'https://developers.google.com/custom-search/v1/introduction',
-      snippet: `To search for "${query}", please configure GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID in your environment variables.`
-    }];
+    return [
+      {
+        title: 'Web search requires Google API configuration',
+        url: 'https://developers.google.com/custom-search/v1/introduction',
+        snippet: `To search for "${query}", please configure GOOGLE_API_KEY and GOOGLE_SEARCH_ENGINE_ID in your environment variables.`,
+      },
+    ];
   }
 
   async fetchPage(url: string): Promise<string> {
     try {
       const response = await axios.get(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; PupAI/1.0; +http://pup.ai)'
+          'User-Agent': 'Mozilla/5.0 (compatible; PupAI/1.0; +http://pup.ai)',
         },
-        timeout: 10000
+        timeout: 10000,
       });
       return response.data;
     } catch (error) {
@@ -128,17 +138,20 @@ export class WebSearchService {
 }
 
 // NBA-specific search helper
-export async function searchNBAStats(playerOrTeam: string, statType?: string): Promise<WebSearchResult[]> {
+export async function searchNBAStats(
+  playerOrTeam: string,
+  statType?: string
+): Promise<WebSearchResult[]> {
   const searchService = new WebSearchService();
-  
+
   let query = playerOrTeam;
   if (statType) {
     query += ` ${statType}`;
   }
-  
+
   // Search specifically on Basketball Reference
   return searchService.search(query, {
     site: 'basketball-reference.com',
-    numResults: 3
+    numResults: 3,
   });
 }

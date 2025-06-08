@@ -17,8 +17,8 @@ export const config = {
 
 export function validateConfig(): void {
   const required = ['SLACK_BOT_TOKEN', 'SLACK_SIGNING_SECRET'];
-  const missing = required.filter(key => !config[key as keyof typeof config]);
-  
+  const missing = required.filter((key) => !config[key as keyof typeof config]);
+
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }

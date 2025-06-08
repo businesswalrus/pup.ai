@@ -15,6 +15,17 @@ export default [
         sourceType: 'module',
         project: './tsconfig.json',
       },
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        exports: 'writable',
+        module: 'writable',
+        require: 'readonly',
+        global: 'readonly',
+      },
     },
     plugins: {
       '@typescript-eslint': typescript,

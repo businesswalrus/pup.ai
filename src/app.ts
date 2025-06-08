@@ -456,9 +456,13 @@ export class PupAI {
     let modelName = process.env.LAMBDA_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
     let modelDisplay = modelName;
     
-    // Make model names more user-friendly
+    // Make model names more user-friendly while keeping accuracy
     if (process.env.LAMBDA_MODEL) {
-      modelDisplay = `Deepseek-R1 (via Lambda Labs)`;
+      modelDisplay = `${process.env.LAMBDA_MODEL} (via Lambda Labs)`;
+    } else if (process.env.OPENAI_MODEL) {
+      modelDisplay = `${process.env.OPENAI_MODEL} (OpenAI)`;
+    } else if (process.env.ANTHROPIC_MODEL) {
+      modelDisplay = `${process.env.ANTHROPIC_MODEL} (Anthropic)`;
     }
     
     prompt += `\n\nIMPORTANT: Today's date is ${currentDate}. When searching for current events or recent information, always include appropriate date context in your searches.`;
@@ -472,7 +476,7 @@ export class PupAI {
       prompt += `\n\nNOTE: You are running on the original Deepseek-R1 model which does not support web search. For real-time information, inform users that you cannot search the web and suggest they verify current information independently.`;
     } else if (modelName.toLowerCase().includes('deepseek-r1-0528')) {
       // Deepseek-R1-0528 DOES support web search!
-      prompt += `\n\nNOTE: You are running on Deepseek-R1-0528, an advanced reasoning model from Lambda Labs with FULL web search capabilities. You have access to the web_search function which you MUST use when asked about:\n- Current events or news\n- Sports scores, games, or results (like "finals game tonight" or "tennis yesterday")\n- Weather or time-sensitive information\n- Stock prices or market data\n- Any factual information that could change over time\n\nALWAYS use the web_search function for these queries. Do not claim you cannot search - you CAN and MUST search when needed. The web_search function is your primary tool for getting current information.`;
+      prompt += `\n\nNOTE: You have web search capabilities via the web_search function. Use it naturally when you need current information like sports scores, recent news, weather, or other time-sensitive data. You'll automatically know when to search based on the query context.`;
     }
     
     return prompt;

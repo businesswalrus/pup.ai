@@ -28,6 +28,45 @@ export class OpenAIProvider extends BaseAIProvider {
     this.webSearch = new WebSearchService();
   }
 
+  private shouldUseWebSearch(prompt: string): boolean {
+    // More intelligent detection - only for queries that truly need current information
+    const lowerPrompt = prompt.toLowerCase();
+    
+    // Strong indicators of needing web search
+    const strongIndicators = [
+      // Sports with time context
+      /\b(game|match|score|playing)\s+(today|tonight|yesterday|last night)/i,
+      /\b(who won|who beat|final score|results?)\s+\w+/i,
+      /\b(nba|nfl|mlb|nhl|tennis|soccer)\s+\w+\s+(game|match|score)/i,
+      
+      // Current events with explicit time markers
+      /\b(latest|current|recent|breaking)\s+(news|events?|updates?)/i,
+      /\bwhat\s+(happened|is happening)\s+(today|yesterday|this week)/i,
+      
+      // Market/financial data
+      /\b(stock price|market|nasdaq|dow jones|bitcoin|crypto)\s+(today|now|current)/i,
+      
+      // Weather (always needs current data)
+      /\b(weather|temperature|forecast)\s+(in|for|today|tomorrow)/i,
+      
+      // Specific dated events
+      /\b(australian open|super bowl|world cup|olympics)\s+202\d/i,
+    ];
+    
+    // Check strong indicators first
+    if (strongIndicators.some(pattern => pattern.test(prompt))) {
+      return true;
+    }
+    
+    // Weaker indicators - only if they have additional context
+    const hasTimeContext = /\b(today|tonight|yesterday|tomorrow|this week|last night|now|current|latest|recent)\b/i.test(lowerPrompt);
+    const hasSportsContext = /\b(game|match|score|beat|defeat|win|loss|playing)\b/i.test(lowerPrompt);
+    const hasNewsContext = /\b(news|happening|event|announcement)\b/i.test(lowerPrompt);
+    
+    // Only search if we have time context AND another context
+    return hasTimeContext && (hasSportsContext || hasNewsContext);
+  }
+
   async generateResponse(prompt: string, context: AIContext): Promise<AIResponse> {
     try {
       const messages = this.buildMessages(prompt, context);
@@ -91,52 +130,31 @@ export class OpenAIProvider extends BaseAIProvider {
         }
       ];
 
-      // Check if the prompt needs web search for factual information
-      const factualPatterns = [
-        // Sports patterns - very broad to catch all sports queries
-        /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf|finals|championship|playoffs|tournament)\b/i,
-        /\b(score|game|match|win|won|lost|beat|defeat|result|outcome|playing|play|played)\b/i,
-        /\b(player|team|athlete|stats|points|rebounds|assists|goals|yards|touchdown)\b/i,
-        // Time-sensitive patterns - catch all temporal references
-        /\b(today|tonight|yesterday|tomorrow|this week|last week|recently|latest|current|now|just|update|last night)\b/i,
-        /\b(happened|happening|occurred|took place|going on|scheduled)\b/i,
-        // Factual query patterns
-        /^(what|who|when|where|how|did|is|was|are|were|which|whose)\b/i,
-        /\b(fact|verify|check|confirm|true|false|actually|really)\b/i,
-        // News and events
-        /\b(news|announcement|released|announced|reported|breaking|headline)\b/i,
-        // Specific fact requests
-        /\b(price|cost|worth|value|stock|market|weather|temperature|forecast)\b/i,
-        /vs\.?|versus|against/i,
-        // Additional patterns for common queries
-        /\b(live|streaming|watch|channel)\b/i,
-        /\b(record|history|all-time|best|worst|first|last)\b/i,
-        // Catch queries about specific years
-        /\b(20\d{2}|19\d{2})\b/
-      ];
-      
-      const needsWebSearch = factualPatterns.some(pattern => pattern.test(prompt));
+      // More targeted web search detection - only for truly factual/time-sensitive queries
+      const needsWebSearch = this.shouldUseWebSearch(prompt);
       
       // Use max_completion_tokens for o1 models, max_tokens for others
       const isO1Model = this.config.model?.startsWith('o1') || this.config.model?.includes('o4');
       
       // Check for specific Deepseek versions - R1-0528 supports function calling!
-      const isDeepseekR1Original = this.config.model?.toLowerCase() === 'deepseek-r1';
+      const modelLower = this.config.model?.toLowerCase() || '';
+      const isDeepseekR1Original = modelLower === 'deepseek-r1' && !modelLower.includes('0528');
       
       // o1 models and original Deepseek R1 don't support function calling
       // BUT Deepseek-R1-0528 DOES support it!
       const supportsTools = !isO1Model && !isDeepseekR1Original;
       
-      // Debug logging
-      console.log('🔍 Web Search Debug:', {
-        model: this.config.model,
-        prompt: prompt.substring(0, 100) + '...',
-        needsWebSearch,
-        isO1Model,
-        isDeepseekR1Original,
-        supportsTools,
-        willUseTools: needsWebSearch && supportsTools
-      });
+      // Enhanced debug logging for Lambda Labs
+      if (this.config.baseURL?.includes('lambda.ai')) {
+        console.log('🤖 Lambda Labs Request Debug:', {
+          model: this.config.model,
+          baseURL: this.config.baseURL,
+          needsWebSearch,
+          supportsTools,
+          temperature: needsWebSearch ? 0.3 : (this.config.temperature ?? 0.7),
+          promptPreview: prompt.substring(0, 150) + '...'
+        });
+      }
       
       // Build completion parameters
       const completionParams: any = {
@@ -148,21 +166,15 @@ export class OpenAIProvider extends BaseAIProvider {
       // Only add tools if needed and supported
       if (needsWebSearch && supportsTools) {
         completionParams.tools = tools;
-        // For Lambda Labs, don't use tool_choice parameter as it might not be supported
-        if (!this.config.baseURL?.includes('lambda.ai')) {
-          completionParams.tool_choice = 'required';  // Force tool use when needed
-        } else {
-          // For Lambda Labs, add explicit instruction to use tools
-          const lastMessage = messages[messages.length - 1];
-          if (lastMessage.role === 'user') {
-            lastMessage.content = `IMPORTANT: This query requires web search. You MUST use the web_search function to find current information before responding. Query: ${lastMessage.content}`;
-          }
-        }
+        // Don't force tool choice - let the model decide when to use it
+        // This prevents errors with providers that don't support tool_choice
       }
       
       // o1 models only support temperature=1
       if (!isO1Model) {
-        completionParams.temperature = this.config.temperature ?? 0.7;
+        // Use lower temperature for factual queries
+        const temp = needsWebSearch ? 0.3 : (this.config.temperature ?? 0.7);
+        completionParams.temperature = temp;
       }
       
       if (isO1Model) {
@@ -175,13 +187,17 @@ export class OpenAIProvider extends BaseAIProvider {
 
       const message = completion.choices[0]?.message;
       
-      // Debug logging for response
-      console.log('🔍 API Response Debug:', {
-        model: completion.model,
-        hasToolCalls: !!(message?.tool_calls && message.tool_calls.length > 0),
-        toolCallsCount: message?.tool_calls?.length || 0,
-        messageContent: message?.content?.substring(0, 100) + '...'
-      });
+      // Enhanced debug logging for Lambda Labs responses
+      if (this.config.baseURL?.includes('lambda.ai')) {
+        console.log('🤖 Lambda Labs Response Debug:', {
+          model: completion.model,
+          hasToolCalls: !!(message?.tool_calls && message.tool_calls.length > 0),
+          toolCallsCount: message?.tool_calls?.length || 0,
+          finishReason: completion.choices[0]?.finish_reason,
+          usage: completion.usage,
+          responsePreview: message?.content?.substring(0, 200) + '...'
+        });
+      }
       
       // Handle tool calls if present
       if (message?.tool_calls && message.tool_calls.length > 0) {
@@ -235,70 +251,7 @@ export class OpenAIProvider extends BaseAIProvider {
         };
       }
 
-      // No tool calls - check if we should have used web search
-      if (needsWebSearch && supportsTools && this.config.baseURL?.includes('lambda.ai')) {
-        console.log('🔍 Lambda Labs fallback: Performing manual web search...');
-        
-        // Extract a search query from the prompt
-        let searchQuery = prompt;
-        
-        // Try to extract a more specific query
-        const queryMatch = prompt.match(/(?:about|what|when|where|who|is there|was there)\s+(.+?)(?:\?|$)/i);
-        if (queryMatch) {
-          searchQuery = queryMatch[1];
-        }
-        
-        try {
-          // Perform web search manually
-          const searchResults = await this.webSearch.search(searchQuery);
-          
-          // Format search results
-          const searchContext = `\n\nWeb search results for "${searchQuery}":\n${searchResults.slice(0, 3).map((r, i) => 
-            `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
-          ).join('\n\n')}`;
-          
-          // Add search results to messages and retry
-          messages.push({
-            role: 'system',
-            content: `Here are current web search results to help answer the user's question:${searchContext}`
-          });
-          
-          // Retry the completion with search results in context
-          const retryParams: any = {
-            model: this.config.model!,
-            messages: messages as any,
-            user: context.userId,
-          };
-          
-          if (!isO1Model) {
-            retryParams.temperature = this.config.temperature ?? 0.7;
-          }
-          
-          if (isO1Model) {
-            retryParams.max_completion_tokens = this.config.maxTokens || 1000;
-          } else {
-            retryParams.max_tokens = this.config.maxTokens || 1000;
-          }
-          
-          const retryCompletion = await this.client.chat.completions.create(retryParams);
-          const retryResponse = retryCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
-          
-          return {
-            content: retryResponse,
-            model: retryCompletion.model,
-            provider: this.name,
-            usage: retryCompletion.usage ? {
-              promptTokens: retryCompletion.usage.prompt_tokens,
-              completionTokens: retryCompletion.usage.completion_tokens,
-              totalTokens: retryCompletion.usage.total_tokens,
-            } : undefined,
-            timestamp: Date.now(),
-          };
-        } catch (searchError) {
-          console.error('🔍 Fallback web search failed:', searchError);
-          // Continue with original response
-        }
-      }
+      // Remove aggressive fallback - let the model work naturally
       
       // No tool calls and no fallback needed, return regular response
       const response = message?.content || 'I need a moment to process that request. Please try again.';
