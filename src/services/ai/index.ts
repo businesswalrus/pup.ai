@@ -7,6 +7,7 @@ import {
 } from '../../types/ai';
 import { OpenAIProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
+import { GeminiProvider } from './providers/gemini';
 import { ContextManager } from './context';
 import { AIResponseCache } from './cache';
 import { PromptManager } from './prompts';
@@ -64,6 +65,19 @@ export class AIService {
         }
       } catch (error) {
         console.error('Failed to initialize Anthropic provider:', error);
+      }
+    }
+    
+    // Initialize Gemini provider if configured
+    if (this.config.providers.gemini) {
+      try {
+        const gemini = new GeminiProvider(this.config.providers.gemini);
+        if (gemini.isAvailable()) {
+          this.providers.set('gemini', gemini);
+          console.log('✅ Gemini AI provider initialized with model:', gemini.getModel());
+        }
+      } catch (error) {
+        console.error('Failed to initialize Gemini provider:', error);
       }
     }
   }

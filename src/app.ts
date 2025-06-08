@@ -224,7 +224,7 @@ export class PupAI {
               });
             } else {
               await say({
-                text: '🐶 pup.ai is running without AI capabilities. Set LAMBDA_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY to enable AI.'
+                text: '🐶 pup.ai is running without AI capabilities. Set LAMBDA_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_GENAI_API_KEY to enable AI.'
               });
             }
             break;
@@ -250,7 +250,47 @@ export class PupAI {
                 await say({ text: `🐶 Failed to switch provider: ${error}` });
               }
             } else {
-              await say({ text: '🐶 Usage: /pup provider [openai|anthropic]' });
+              await say({ text: '🐶 Usage: /pup provider [openai|anthropic|gemini]' });
+            }
+            break;
+          
+          case 'test-gemini':
+            // Test Gemini grounding capabilities
+            if (this.aiService) {
+              const wasGemini = this.aiService.getActiveProvider() === 'gemini';
+              
+              try {
+                // Switch to Gemini if not already active
+                if (!wasGemini) {
+                  this.aiService.setActiveProvider('gemini' as any);
+                }
+                
+                await say({ text: '🧪 Testing Gemini with grounding...' });
+                
+                // Test with a query that requires grounding
+                const testQuery = "What's the current weather in San Francisco?";
+                const response = await this.aiService.generateResponse(
+                  testQuery,
+                  command.channel_id,
+                  command.user_id,
+                  { isDirectMessage: false }
+                );
+                
+                await say({
+                  text: `🤖 Gemini Response (${response.model}):\n${response.content}\n\n` +
+                    `📊 Tokens used: ${response.usage?.totalTokens || 'unknown'}`
+                });
+                
+                // Restore previous provider if we switched
+                if (!wasGemini) {
+                  this.aiService.setActiveProvider((process.env.LAMBDA_API_KEY ? 'openai' : 
+                    process.env.OPENAI_API_KEY ? 'openai' : 'anthropic') as any);
+                }
+              } catch (error) {
+                await say({ text: `🐶 Gemini test failed: ${error}` });
+              }
+            } else {
+              await say({ text: '🐶 No AI service available for testing' });
             }
             break;
 
@@ -287,6 +327,19 @@ export class PupAI {
               date: () => {
                 const now = new Date();
                 return `Date aware: ✅ ${now.toLocaleString()}`;
+              },
+              
+              gemini: async () => {
+                if (this.aiService) {
+                  const health = this.aiService.healthCheck();
+                  const hasGemini = health.providers['gemini'] || false;
+                  const isActiveGemini = health.activeProvider === 'gemini';
+                  if (hasGemini) {
+                    return `Gemini: ✅ Available${isActiveGemini ? ' (Active)' : ''} - Model: ${health.activeModel}`;
+                  }
+                  return 'Gemini: ❌ Not configured';
+                }
+                return 'Gemini: ❌ No AI service';
               }
             };
             
@@ -297,7 +350,8 @@ export class PupAI {
               tests.search(),
               tests.context(),
               tests.botid(),
-              tests.date()
+              tests.date(),
+              tests.gemini()
             ]);
             
             await say({
@@ -312,8 +366,9 @@ export class PupAI {
                 `• /pup status - Show AI service status\n` +
                 `• /pup clear cache - Clear response cache\n` +
                 `• /pup clear context - Clear conversation context\n` +
-                `• /pup provider [openai|anthropic] - Switch AI provider\n` +
+                `• /pup provider [openai|anthropic|gemini] - Switch AI provider\n` +
                 `• /pup test - Run comprehensive system tests\n` +
+                `• /pup test-gemini - Test Gemini grounding capabilities\n` +
                 `• /pup help - Show this help message`
             });
             break;
@@ -413,7 +468,7 @@ export class PupAI {
     try {
       const aiConfig: AIServiceConfig = {
         providers: {},
-        defaultProvider: 'openai',
+        defaultProvider: 'gemini',
         cache: {
           ttl: 5 * 60 * 1000, // 5 minutes
           maxSize: 1000,
@@ -461,18 +516,30 @@ export class PupAI {
           temperature: 0.7
         };
         // If Anthropic is available and no OpenAI/Lambda, use Anthropic as default
-        if (!process.env.OPENAI_API_KEY && !process.env.LAMBDA_API_KEY) {
+        if (!process.env.OPENAI_API_KEY && !process.env.LAMBDA_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
           aiConfig.defaultProvider = 'anthropic';
         }
       }
+      
+      // Check for Google Gemini configuration
+      if (process.env.GOOGLE_GENAI_API_KEY) {
+        aiConfig.providers.gemini = {
+          apiKey: process.env.GOOGLE_GENAI_API_KEY,
+          model: process.env.GOOGLE_GENAI_MODEL || 'gemini-2.0-flash-exp',
+          maxTokens: process.env.GOOGLE_GENAI_MAX_TOKENS ? parseInt(process.env.GOOGLE_GENAI_MAX_TOKENS) : 2048,
+          temperature: process.env.GOOGLE_GENAI_TEMPERATURE ? parseFloat(process.env.GOOGLE_GENAI_TEMPERATURE) : 0.7
+        };
+        // Always prefer Gemini as default for grounding capabilities
+        aiConfig.defaultProvider = 'gemini';
+      }
 
       // Only initialize if at least one provider is configured
-      if (aiConfig.providers.openai || aiConfig.providers.anthropic) {
+      if (aiConfig.providers.openai || aiConfig.providers.anthropic || aiConfig.providers.gemini) {
         this.aiService = new AIService(aiConfig);
         console.log('✅ AI service initialized with provider:', this.aiService.getActiveProvider());
       } else {
         console.log('⚠️ No AI providers configured. Bot will run without AI capabilities.');
-        console.log('   To enable AI, set LAMBDA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY in your .env file');
+        console.log('   To enable AI, set LAMBDA_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_GENAI_API_KEY in your .env file');
       }
     } catch (error) {
       console.error('Failed to initialize AI service:', error);

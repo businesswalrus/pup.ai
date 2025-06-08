@@ -58,12 +58,13 @@ export interface PromptTemplate {
   description?: string;
 }
 
-export type AIProviderType = 'openai' | 'anthropic';
+export type AIProviderType = 'openai' | 'anthropic' | 'gemini';
 
 export interface AIServiceConfig {
   providers: {
     openai?: AIProviderConfig;
     anthropic?: AIProviderConfig;
+    gemini?: AIProviderConfig;
   };
   defaultProvider: AIProviderType;
   cache: CacheOptions;

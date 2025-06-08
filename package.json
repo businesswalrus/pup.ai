@@ -21,6 +21,7 @@
   "description": "",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@google/generative-ai": "^0.24.1",
     "@slack/bolt": "^4.4.0",
     "@types/node": "^22.15.26",
     "axios": "^1.9.0",

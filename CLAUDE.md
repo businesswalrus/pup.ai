@@ -315,13 +315,16 @@ The current default personality ('walrus') features:
    SLACK_APP_TOKEN=xapp-your-app-token  # For socket mode
    
    # AI Provider (at least one required)
-   # Option 1: Lambda Labs (for Deepseek models)
+   # Option 1: Google Gemini (RECOMMENDED - Flash 2.0 with grounding)
+   GOOGLE_GENAI_API_KEY=your-gemini-api-key
+   
+   # Option 2: Lambda Labs (for Deepseek models)
    LAMBDA_API_KEY=your-lambda-api-key
    
-   # Option 2: OpenAI
+   # Option 3: OpenAI
    OPENAI_API_KEY=sk-your-key-here
    
-   # Option 3: Anthropic
+   # Option 4: Anthropic
    ANTHROPIC_API_KEY=sk-ant-your-key-here
    ```
 
@@ -329,7 +332,20 @@ The current default personality ('walrus') features:
 
 **AI Provider Options**:
 
-1. **Lambda Labs** (OpenAI-compatible API for advanced models):
+1. **Google Gemini** (RECOMMENDED - Default provider with grounding):
+   - Uses Gemini Flash 2.0 with native grounding (web search)
+   - Automatic real-time information retrieval
+   - No hallucinations for factual queries
+   - Fast responses optimized for production
+   - Configuration:
+     ```bash
+     GOOGLE_GENAI_API_KEY=your-gemini-api-key
+     GOOGLE_GENAI_MODEL=gemini-2.0-flash-exp  # Default (also: gemini-1.5-pro)
+     GOOGLE_GENAI_MAX_TOKENS=2048             # Max response tokens
+     GOOGLE_GENAI_TEMPERATURE=0.7             # Creativity 0-2
+     ```
+
+2. **Lambda Labs** (OpenAI-compatible API for advanced models):
    - Uses Deepseek-R1-0528 with FULL web search support!
    - No rate limits on requests
    - Supports all OpenAI API features including function calling
@@ -341,14 +357,14 @@ The current default personality ('walrus') features:
      LAMBDA_TEMPERATURE=0.7             # Creativity 0-2
      ```
 
-2. **OpenAI**:
+3. **OpenAI**:
    ```bash
    OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-mini, o1-preview
    OPENAI_MAX_TOKENS=1000            # Max response tokens (default: 1000)
    OPENAI_TEMPERATURE=0.7            # Creativity 0-2 (default: 0.7, o1 models ignore this)
    ```
 
-3. **Anthropic**:
+4. **Anthropic**:
    ```bash
    ANTHROPIC_MODEL=claude-3-opus-20240229
    # Note: Anthropic settings are currently hardcoded
@@ -379,9 +395,12 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - Custom personalities can be added by modifying the `createSystemPrompt()` method in `app.ts`
 
 **Web Search Feature**:
-- Available with OpenAI provider and Deepseek-R1-0528 via Lambda Labs
-- NOT available with o1 models or original Deepseek-R1
-- Deepseek-R1-0528 has FULL web search capabilities via function calling
+- **Primary**: Gemini Flash 2.0 with native grounding (automatic, no configuration needed!)
+- **Secondary**: Manual web search via WebSearchService for other providers
+- Available with:
+  - Gemini Flash 2.0 (native grounding - BEST option)
+  - OpenAI provider and Deepseek-R1-0528 via Lambda Labs
+  - NOT available with o1 models or original Deepseek-R1
 - Automatically triggered for factual queries (sports scores, recent events, news, facts)
 - REQUIRED for queries matching factual patterns - prevents hallucination
 - Can search for real-time information on any topic
@@ -406,7 +425,9 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - `/pup status` - Check AI service health
 - `/pup clear cache` - Clear response cache
 - `/pup clear context` - Reset conversation
-- `/pup provider [openai|anthropic]` - Switch providers (Lambda Labs uses 'openai' provider)
+- `/pup provider [gemini|openai|anthropic]` - Switch providers (Gemini is default)
+- `/pup test` - Run comprehensive system tests
+- `/pup test-gemini` - Test Gemini grounding capabilities
 - `/pup help` - Show all commands
 
 **Bot responds to**:
@@ -659,6 +680,77 @@ Major debugging and fixes for Lambda Labs/Deepseek integration issues including 
 
 ---
 
-**Last Updated**: 2025-01-13  
+## 🔧 Session Update: Google Gemini Integration & Enhanced Web Search (2025-01-14)
+
+### Overview
+Major enhancement adding Google Gemini Flash 2.0 as the primary AI provider with native grounding capabilities, plus critical fixes for memory leaks and bot ID detection.
+
+### Changes Made
+
+1. **Added Google Gemini Provider**
+   - **File**: `src/services/ai/providers/gemini.ts`
+   - Full implementation of Gemini Flash 2.0 with native grounding
+   - Automatic web search for factual queries (no configuration needed!)
+   - Safety settings configured for accurate responses
+   - Proper conversation history formatting
+
+2. **Fixed Critical Memory Leak**
+   - **File**: `src/services/ai/context.ts`
+   - Added automatic cleanup every hour
+   - Limits contexts to 12 hours and 30 messages max
+   - Prevents production crashes from memory exhaustion
+
+3. **Fixed Hardcoded Bot ID**
+   - **File**: `src/app.ts`
+   - Bot ID now dynamically retrieved via auth.test()
+   - Falls back gracefully if auth fails
+   - Prevents bot from responding to itself
+
+4. **Enhanced Web Search**
+   - **File**: `src/utils/webSearch.ts`
+   - Added support for multiple search providers (Brave, Google, SerpAPI)
+   - Comprehensive pattern matching for time-sensitive queries
+   - Smart query enhancement with temporal context
+
+5. **Improved Context Management**
+   - **File**: `src/services/ai/context.ts`
+   - Added formatted context with timestamps
+   - Topic detection for follow-up questions
+   - Conversation summaries
+
+6. **Smart Response Generation**
+   - **File**: `src/services/ai/smartResponse.ts`
+   - Detects follow-up questions intelligently
+   - Adds personality hints based on message type
+   - Integrates web search seamlessly
+
+7. **Date/Time Awareness**
+   - **File**: `src/utils/dateContext.ts`
+   - Automatic date/time injection for temporal queries
+   - Natural language time parsing
+   - Relative time formatting
+
+### Configuration Updates
+
+**Gemini is now the DEFAULT provider**. To use:
+```env
+GOOGLE_GENAI_API_KEY=your-api-key-here
+GOOGLE_GENAI_MODEL=gemini-2.0-flash-exp  # Optional, this is default
+```
+
+### Testing Commands
+- `/pup test` - Includes Gemini status check
+- `/pup test-gemini` - Test grounding capabilities specifically
+- `/pup provider gemini` - Switch to Gemini (already default)
+
+### Why Gemini Flash 2.0?
+- **Native grounding**: No separate web search API needed
+- **Fast responses**: Optimized for production use
+- **No hallucinations**: Grounded responses for factual queries
+- **Cost-effective**: More affordable than GPT-4 with similar capabilities
+
+---
+
+**Last Updated**: 2025-01-14  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Complete Lambda Labs/Deepseek Integration Overhaul - Fixed thinking tags, API crashes, web search failures, and NBA hallucinations
+**Session**: Google Gemini Integration & Critical Fixes - Added Gemini Flash 2.0 with grounding, fixed memory leak, dynamic bot ID, enhanced web search
