@@ -460,6 +460,37 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 ---
 
+## 🔧 Recent Updates
+
+### Lambda Labs Integration (2025-01-07)
+Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
+
+1. **Configuration**:
+   - Uses OpenAI-compatible endpoint: `https://api.lambda.ai/v1`
+   - Environment variables: `LAMBDA_API_KEY`, `LAMBDA_MODEL`, `LAMBDA_MAX_TOKENS`, `LAMBDA_TEMPERATURE`
+   - Takes priority over OpenAI if configured
+
+2. **Web Search Support**:
+   - Deepseek-R1-0528 has FULL function calling support
+   - Automatic web search for factual queries
+   - Fallback mechanism if Lambda API doesn't trigger tools
+   - Enhanced pattern detection for sports, news, time-sensitive queries
+
+3. **Key Fixes Applied**:
+   - Model detection differentiates between original R1 and R1-0528
+   - System prompt explicitly instructs Deepseek to use web_search
+   - Debug logging tracks web search detection and usage
+   - Force tool usage with `tool_choice: 'required'` for OpenAI
+   - Manual web search fallback for Lambda Labs
+
+4. **Important Notes**:
+   - Ensure Railway environment variables are properly set
+   - Bot will show "openai (Lambda Labs)" as provider in `/pup status`
+   - Web search works for: sports scores, current events, weather, stock prices
+   - Google API credentials still required for web search functionality
+
+---
+
 **Last Updated**: 2025-01-07  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Lambda Labs Integration - Added support for Deepseek-R1 via Lambda Labs API
+**Session**: Lambda Labs Web Search Fix - Enabled full web search for Deepseek-R1-0528
