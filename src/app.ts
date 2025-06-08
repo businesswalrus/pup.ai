@@ -117,6 +117,17 @@ export class PupAI {
                 }
               );
 
+              // Final output logging for DMs
+              console.log('📤 Final Response to Slack (DM):', {
+                responseLength: aiResponse.content.length,
+                responsePreview: aiResponse.content.substring(0, 300) + (aiResponse.content.length > 300 ? '...' : ''),
+                model: aiResponse.model,
+                provider: aiResponse.provider,
+                usage: aiResponse.usage,
+                isDirectMessage,
+                channel
+              });
+              
               await say({
                 text: aiResponse.content
               });
@@ -248,6 +259,15 @@ export class PupAI {
               }
             );
 
+            // Final output logging
+            console.log('📤 Final Response to Slack:', {
+              responseLength: aiResponse.content.length,
+              responsePreview: aiResponse.content.substring(0, 300) + (aiResponse.content.length > 300 ? '...' : ''),
+              model: aiResponse.model,
+              provider: aiResponse.provider,
+              usage: aiResponse.usage
+            });
+            
             await say({
               text: aiResponse.content
             });

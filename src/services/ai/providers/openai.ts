@@ -28,6 +28,32 @@ export class OpenAIProvider extends BaseAIProvider {
     this.webSearch = new WebSearchService();
   }
 
+  private processDeepseekResponse(content: string): string {
+    // Deepseek models often include thinking process in tags
+    // Strip out <think>, <thinking>, </think>, </thinking> tags and everything between them
+    let processed = content;
+    
+    // Remove <think>...</think> blocks
+    processed = processed.replace(/<think[^>]*>([\s\S]*?)<\/think>/gi, '');
+    
+    // Remove <thinking>...</thinking> blocks
+    processed = processed.replace(/<thinking[^>]*>([\s\S]*?)<\/thinking>/gi, '');
+    
+    // Also remove standalone tags in case they're not properly paired
+    processed = processed.replace(/<\/?think[^>]*>/gi, '');
+    processed = processed.replace(/<\/?thinking[^>]*>/gi, '');
+    
+    // Trim any leading/trailing whitespace
+    processed = processed.trim();
+    
+    // If we stripped everything, return a fallback
+    if (!processed) {
+      return "I need a moment to process that. Please try again.";
+    }
+    
+    return processed;
+  }
+
   private shouldUseWebSearch(prompt: string): boolean {
     // More intelligent detection - only for queries that truly need current information
     const lowerPrompt = prompt.toLowerCase();
@@ -187,6 +213,27 @@ export class OpenAIProvider extends BaseAIProvider {
 
       const message = completion.choices[0]?.message;
       
+      // Process response content if it's from Deepseek
+      let responseContent = message?.content || '';
+      const isDeepseek = this.config.model?.toLowerCase().includes('deepseek') || 
+                         completion.model?.toLowerCase().includes('deepseek');
+      
+      if (isDeepseek && responseContent) {
+        const rawContent = responseContent;
+        responseContent = this.processDeepseekResponse(responseContent);
+        
+        // Log the processing if content was modified
+        if (rawContent !== responseContent) {
+          console.log('🧹 Deepseek Response Processing:', {
+            model: completion.model,
+            rawLength: rawContent.length,
+            processedLength: responseContent.length,
+            removedThinking: rawContent.includes('<think') || rawContent.includes('<thinking'),
+            processedPreview: responseContent.substring(0, 200) + '...'
+          });
+        }
+      }
+      
       // Enhanced debug logging for Lambda Labs responses
       if (this.config.baseURL?.includes('lambda.ai')) {
         console.log('🤖 Lambda Labs Response Debug:', {
@@ -195,7 +242,8 @@ export class OpenAIProvider extends BaseAIProvider {
           toolCallsCount: message?.tool_calls?.length || 0,
           finishReason: completion.choices[0]?.finish_reason,
           usage: completion.usage,
-          responsePreview: message?.content?.substring(0, 200) + '...'
+          rawResponsePreview: message?.content?.substring(0, 200) + '...',
+          processedResponsePreview: responseContent.substring(0, 200) + '...'
         });
       }
       
@@ -235,7 +283,15 @@ export class OpenAIProvider extends BaseAIProvider {
         
         const followUpCompletion = await this.client.chat.completions.create(followUpParams);
         
-        const finalResponse = followUpCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
+        let finalResponse = followUpCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
+        
+        // Process Deepseek responses to remove thinking tags
+        const isDeepseekFollowUp = this.config.model?.toLowerCase().includes('deepseek') || 
+                                   followUpCompletion.model?.toLowerCase().includes('deepseek');
+        if (isDeepseekFollowUp && finalResponse) {
+          finalResponse = this.processDeepseekResponse(finalResponse);
+        }
+        
         const usage = followUpCompletion.usage;
         
         return {
@@ -254,7 +310,8 @@ export class OpenAIProvider extends BaseAIProvider {
       // Remove aggressive fallback - let the model work naturally
       
       // No tool calls and no fallback needed, return regular response
-      const response = message?.content || 'I need a moment to process that request. Please try again.';
+      // Use the processed response content
+      const response = responseContent || 'I need a moment to process that request. Please try again.';
       const usage = completion.usage;
 
       return {
