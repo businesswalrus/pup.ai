@@ -2,10 +2,13 @@ import { App, LogLevel } from '@slack/bolt';
 import { config, validateConfig } from './config';
 import { AIService } from './services/ai';
 import { AIServiceConfig } from './types/ai';
+import { WebSearchService } from './utils/webSearch';
 
 export class PupAI {
   private app: App;
   private aiService: AIService | null = null;
+  private botUserId: string | null = null;
+  private webSearchService: WebSearchService;
 
   constructor() {
     validateConfig();
@@ -16,6 +19,9 @@ export class PupAI {
       myUserId: config.MY_USER_ID,
       socketMode: !!config.SLACK_APP_TOKEN
     });
+    
+    // Initialize web search service
+    this.webSearchService = new WebSearchService();
 
     this.app = new App({
       token: config.SLACK_BOT_TOKEN,
@@ -39,6 +45,20 @@ export class PupAI {
   async initialize(): Promise<void> {
     console.log('🚀 Starting bot initialization...');
     
+    // Get the bot's ID dynamically
+    try {
+      const authTest = await this.app.client.auth.test({
+        token: config.SLACK_BOT_TOKEN
+      });
+      this.botUserId = authTest.user_id as string;
+      console.log(`✓ Bot initialized with ID: ${this.botUserId}`);
+    } catch (error) {
+      console.error('❌ Failed to get bot ID:', error);
+      // Fall back to hardcoded ID if auth test fails
+      this.botUserId = 'U08UDJWK40P';
+      console.warn('⚠️ Using fallback bot ID');
+    }
+    
     // Initialize AI service if API keys are provided
     this.initializeAIService();
 
@@ -61,6 +81,10 @@ export class PupAI {
       try {
         // Only process user messages (not bot messages)
         if ('user' in message && 'text' in message && 'channel' in message && !('bot_id' in message)) {
+          // Also ignore messages from the bot itself
+          if (this.botUserId && message.user === this.botUserId) {
+            return;
+          }
           const channel = message.channel;
           const userId = message.user;
           const text = message.text || '';
@@ -68,8 +92,7 @@ export class PupAI {
           const isOwner = userId === config.MY_USER_ID;
           
           // Check if bot is mentioned in the message
-          const botUserId = 'U08UDJWK40P'; // Bot user ID from auth test
-          const isBotMentioned = text.includes(`<@${botUserId}>`);
+          const isBotMentioned = this.botUserId ? text.includes(`<@${this.botUserId}>`) : false;
           
           console.log('💬 Message received:', {
             user: userId,
@@ -101,8 +124,27 @@ export class PupAI {
             const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
             
             try {
+              // Check if web search is needed
+              let enhancedPrompt = cleanText;
+              let searchContext = '';
+              
+              if (this.webSearchService.shouldSearch(cleanText)) {
+                console.log('🔍 Web search triggered for query:', cleanText);
+                const searchResults = await this.webSearchService.search(cleanText);
+                
+                if (searchResults.length > 0) {
+                  searchContext = '\n\nCurrent web search results:\n' + 
+                    searchResults.map((r, i) => 
+                      `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
+                    ).join('\n\n');
+                  
+                  enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
+                  console.log('🔍 Added web search context to prompt');
+                }
+              }
+              
               const aiResponse = await this.aiService.generateResponse(
-                cleanText,
+                enhancedPrompt,
                 channel,
                 userId,
                 {
@@ -112,7 +154,8 @@ export class PupAI {
                     userName: isOwner ? 'Boss' : 'Human',
                     channelType: isDirectMessage ? 'DM' : 'channel',
                     context: isOwner ? 'owner' : 'regular',
-                    isOwner: isOwner.toString()
+                    isOwner: isOwner.toString(),
+                    hasSearchResults: searchContext ? 'true' : 'false'
                   }
                 }
               );
@@ -211,6 +254,57 @@ export class PupAI {
             }
             break;
 
+          case 'test':
+            // Comprehensive test suite
+            const tests = {
+              memory: () => {
+                const usage = process.memoryUsage();
+                return `Memory: ${Math.round(usage.heapUsed / 1024 / 1024)}MB / ${Math.round(usage.heapTotal / 1024 / 1024)}MB`;
+              },
+              
+              search: async () => {
+                try {
+                  const results = await this.webSearchService.search('latest news today');
+                  return `Search working: ${results.length > 0 ? '✅' : '❌'} (${results.length} results)`;
+                } catch (error) {
+                  return `Search working: ❌ (${error})`;
+                }
+              },
+              
+              context: () => {
+                if (this.aiService) {
+                  const contextManager = (this.aiService as any).contextManager;
+                  const contexts = contextManager.getAllChannelIds();
+                  return `Tracking ${contexts.length} channels`;
+                }
+                return 'Context: No AI service';
+              },
+              
+              botid: () => {
+                return `Bot ID: ${this.botUserId || '❌ Not set!'}`;
+              },
+              
+              date: () => {
+                const now = new Date();
+                return `Date aware: ✅ ${now.toLocaleString()}`;
+              }
+            };
+            
+            await say({ text: '🧪 Running Pup-AI tests...' });
+            
+            const results = await Promise.all([
+              tests.memory(),
+              tests.search(),
+              tests.context(),
+              tests.botid(),
+              tests.date()
+            ]);
+            
+            await say({
+              text: `🧪 *Pup-AI Test Results:*\n${results.join('\n')}\n\nAll systems operational! 🚀`
+            });
+            break;
+
           case 'help':
           default:
             await say({
@@ -219,6 +313,7 @@ export class PupAI {
                 `• /pup clear cache - Clear response cache\n` +
                 `• /pup clear context - Clear conversation context\n` +
                 `• /pup provider [openai|anthropic] - Switch AI provider\n` +
+                `• /pup test - Run comprehensive system tests\n` +
                 `• /pup help - Show this help message`
             });
             break;
@@ -242,8 +337,27 @@ export class PupAI {
         
         if (this.aiService && text) {
           try {
+            // Check if web search is needed
+            let enhancedPrompt = text;
+            let searchContext = '';
+            
+            if (this.webSearchService.shouldSearch(text)) {
+              console.log('🔍 Web search triggered for app mention:', text);
+              const searchResults = await this.webSearchService.search(text);
+              
+              if (searchResults.length > 0) {
+                searchContext = '\n\nCurrent web search results:\n' + 
+                  searchResults.map((r, i) => 
+                    `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
+                  ).join('\n\n');
+                
+                enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
+                console.log('🔍 Added web search context to app mention');
+              }
+            }
+            
             const aiResponse = await this.aiService.generateResponse(
-              text,
+              enhancedPrompt,
               event.channel,
               userId,
               {
@@ -254,7 +368,8 @@ export class PupAI {
                   userName: isOwner ? 'Boss' : 'Human',
                   channelType: 'channel',
                   context: isOwner ? 'owner' : 'regular',
-                  isOwner: isOwner.toString()
+                  isOwner: isOwner.toString(),
+                  hasSearchResults: searchContext ? 'true' : 'false'
                 }
               }
             );

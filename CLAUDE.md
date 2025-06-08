@@ -571,6 +571,94 @@ Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
 
 ---
 
+## 📝 Session Summary: Complete Lambda Labs/Deepseek Integration Overhaul (2025-01-13)
+
+### Overview
+Major debugging and fixes for Lambda Labs/Deepseek integration issues including response processing, API error handling, web search functionality, and sports hallucinations.
+
+### Issues Fixed
+
+1. **Deepseek Thinking Tags Appearing in Slack**
+   - **Problem**: `<think>` and `<thinking>` tags from Deepseek's internal reasoning were visible to users
+   - **Solution**: Added `processDeepseekResponse()` method to strip all thinking tags before sending to Slack
+   - **Location**: `src/services/ai/providers/openai.ts:31-55`
+
+2. **Critical Production Crash: "Cannot read properties of undefined"**
+   - **Problem**: Lambda Labs API sometimes returns invalid response structures
+   - **Solution**: Added defensive checks before accessing `completion.choices[0]`
+   - **Key Changes**:
+     - Check for error objects: `if (completion && (completion as any).object === 'error')`
+     - Validate response structure: `if (!completion || !completion.choices || completion.choices.length === 0)`
+     - Added similar checks for follow-up responses
+   - **Location**: `src/services/ai/providers/openai.ts:271-282, 363-367`
+
+3. **Lambda Labs tool_choice Parameter Errors**
+   - **Problem**: Lambda Labs doesn't support OpenAI's `tool_choice` parameter
+   - **Solution**: Never set `tool_choice` for Lambda Labs, use system messages instead
+   - **Implementation**:
+     - Detect Lambda Labs via baseURL check
+     - Add system message to encourage tool use instead of forcing it
+     - Retry logic if tool_choice error occurs
+   - **Location**: `src/services/ai/providers/openai.ts:223-244, 431-479`
+
+4. **NBA Finals Hallucination (Celtics vs Mavericks)**
+   - **Problem**: Bot was making up teams instead of using web search results
+   - **Root Cause**: Web search patterns weren't catching queries like "When's the next nba finals game"
+   - **Solutions**:
+     - Expanded web search patterns to catch all NBA Finals queries
+     - Added explicit instructions to use ONLY search results
+     - Enhanced search result logging for debugging
+   - **Key Patterns Added**:
+     - `/\bnba\s+finals/i` - ANY mention of NBA Finals
+     - `/\bwhen('?s|\s+is|\s+are).*\b(nba|nfl|mlb|nhl|game|match|finals|playoff)/i`
+     - `/\b(is there|are there|any).*\b(game|match|finals|playoff).*\b(tonight|today)/i`
+   - **Location**: `src/services/ai/providers/openai.ts:57-120`
+
+### Technical Implementation Details
+
+1. **Response Processing Pipeline**:
+   ```typescript
+   // Process all Deepseek responses
+   if (isDeepseek && responseContent) {
+     responseContent = this.processDeepseekResponse(responseContent);
+   }
+   ```
+
+2. **Enhanced Logging**:
+   - 🎯 Web search detection
+   - 🤖 Lambda Labs request/response
+   - 🧹 Deepseek response processing
+   - 📤 Final output to Slack
+   - 🔍 Web search execution
+
+3. **Model Detection**:
+   - Proper display of actual model name in `/pup status`
+   - Shows "deepseek-r1-0528 (via Lambda Labs)" for clarity
+   - Distinguishes between original R1 and R1-0528 variants
+
+### Configuration Notes
+
+- Lambda Labs uses OpenAI-compatible endpoint: `https://api.lambda.ai/v1`
+- Deepseek-R1-0528 DOES support function calling (unlike original R1)
+- Web search works automatically for factual queries
+- Temperature lowered to 0.3 for factual queries to reduce hallucinations
+
+### Testing & Verification
+
+- Tested NBA Finals queries - now correctly reports Pacers vs Thunder
+- Verified thinking tags no longer appear in Slack
+- Confirmed no more crashes from invalid API responses
+- Web search properly triggers for all sports/time-sensitive queries
+
+### Future Considerations
+
+- Consider adding more robust API response validation
+- May want to implement streaming responses for better UX
+- Could add user preference for web search sensitivity
+- Plugin system would benefit from these error handling patterns
+
+---
+
 **Last Updated**: 2025-01-13  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: NBA Finals Hallucination Fix - Bot now reports Pacers vs Thunder correctly
+**Session**: Complete Lambda Labs/Deepseek Integration Overhaul - Fixed thinking tags, API crashes, web search failures, and NBA hallucinations
