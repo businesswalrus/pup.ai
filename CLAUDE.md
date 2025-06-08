@@ -462,6 +462,31 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 
 ## 🔧 Recent Updates
 
+### Deepseek Integration Fixes (2025-01-13)
+Major improvements to Lambda Labs/Deepseek integration for more natural behavior:
+
+1. **Smarter Web Search Detection**:
+   - Removed overly broad patterns that triggered on almost any question
+   - Now only searches for genuinely time-sensitive queries with clear context
+   - Examples that DO trigger: "who won the game last night", "current weather in NYC"
+   - Examples that DON'T trigger: "what is python", "who invented the telephone"
+
+2. **Natural AI Behavior**:
+   - Removed aggressive prompt modifications that confused the model
+   - Let Deepseek decide when to use tools naturally
+   - Lower temperature (0.3) for factual queries reduces hallucinations
+   - Removed intrusive fallback web search mechanism
+
+3. **Accurate Model Information**:
+   - Bot now shows actual model name: "deepseek-r1-0528 (via Lambda Labs)"
+   - Proper detection between original R1 and R1-0528 variants
+   - Clear indication of which provider is being used
+
+4. **Better Debug Logging**:
+   - Enhanced Lambda Labs-specific request/response logging
+   - Easier to troubleshoot issues with detailed debug output
+   - Tracks temperature adjustments and tool usage decisions
+
 ### Lambda Labs Integration (2025-01-07)
 Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
 
@@ -473,24 +498,16 @@ Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
 2. **Web Search Support**:
    - Deepseek-R1-0528 has FULL function calling support
    - Automatic web search for factual queries
-   - Fallback mechanism if Lambda API doesn't trigger tools
    - Enhanced pattern detection for sports, news, time-sensitive queries
 
-3. **Key Fixes Applied**:
-   - Model detection differentiates between original R1 and R1-0528
-   - System prompt explicitly instructs Deepseek to use web_search
-   - Debug logging tracks web search detection and usage
-   - Force tool usage with `tool_choice: 'required'` for OpenAI
-   - Manual web search fallback for Lambda Labs
-
-4. **Important Notes**:
+3. **Important Notes**:
    - Ensure Railway environment variables are properly set
-   - Bot will show "openai (Lambda Labs)" as provider in `/pup status`
+   - Bot will show exact model name in `/pup status`
    - Web search works for: sports scores, current events, weather, stock prices
    - Google API credentials still required for web search functionality
 
 ---
 
-**Last Updated**: 2025-01-07  
+**Last Updated**: 2025-01-13  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Lambda Labs Web Search Fix - Enabled full web search for Deepseek-R1-0528
+**Session**: Fix Deepseek Integration Issues - Made bot behavior more natural and accurate
