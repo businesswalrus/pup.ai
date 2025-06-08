@@ -55,45 +55,66 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   private shouldUseWebSearch(prompt: string): boolean {
-    // More intelligent detection - only for queries that truly need current information
     const lowerPrompt = prompt.toLowerCase();
     
-    // Strong indicators of needing web search
-    const strongIndicators = [
-      // Sports with time context
-      /\b(game|match|score|playing)\s+(today|tonight|yesterday|last night)/i,
-      /\b(who won|who beat|final score|results?)\s+\w+/i,
-      /\b(nba|nfl|mlb|nhl|tennis|soccer)\s+\w+\s+(game|match|score)/i,
+    // ALWAYS search for these patterns - no exceptions
+    const mustSearchPatterns = [
+      // Any sports query with time reference
+      /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf).*\b(tonight|today|yesterday|tomorrow|last night)/i,
+      /\b(tonight|today|yesterday|tomorrow|last night).*\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf)/i,
       
-      // Current events with explicit time markers
-      /\b(latest|current|recent|breaking)\s+(news|events?|updates?)/i,
-      /\bwhat\s+(happened|is happening)\s+(today|yesterday|this week)/i,
+      // "Who won" or "who beat" queries
+      /\bwho\s+(won|beat|defeated|lost)/i,
+      /\b(score|result|outcome)[\s\w]*(of|from|in|for)/i,
       
-      // Market/financial data
-      /\b(stock price|market|nasdaq|dow jones|bitcoin|crypto)\s+(today|now|current)/i,
+      // Finals, playoffs, championships with any time context
+      /\b(finals|playoff|championship|tournament|match|game).*\b(tonight|today|yesterday|tomorrow|last night|this week)/i,
       
-      // Weather (always needs current data)
-      /\b(weather|temperature|forecast)\s+(in|for|today|tomorrow)/i,
+      // Weather queries
+      /\b(weather|temperature|forecast|rain|snow)/i,
       
-      // Specific dated events
-      /\b(australian open|super bowl|world cup|olympics)\s+202\d/i,
+      // Stock/crypto/market queries
+      /\b(stock|crypto|bitcoin|market|nasdaq|dow)[\s\w]*(price|today|now)/i,
+      
+      // Current events
+      /\b(latest|current|recent|breaking|today'?s)[\s\w]*(news|events?)/i,
+      /\bwhat('?s)?[\s\w]*(happening|going on)[\s\w]*(today|now|tonight)/i,
+      
+      // Any query about specific recent dates
+      /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}/i,
+      /\b202[3-5]\b/,
+      
+      // Score or result queries
+      /\b(final score|game result|match result)/i,
+      
+      // "Are there" + sports + time
+      /\b(is there|are there|any).*\b(game|match|finals|playoff).*\b(tonight|today)/i,
     ];
     
-    // Check strong indicators first
-    if (strongIndicators.some(pattern => pattern.test(prompt))) {
+    // If any pattern matches, MUST use web search
+    if (mustSearchPatterns.some(pattern => pattern.test(prompt))) {
+      console.log('🎯 Web search REQUIRED for query:', prompt);
       return true;
     }
     
-    // Weaker indicators - only if they have additional context
-    const hasTimeContext = /\b(today|tonight|yesterday|tomorrow|this week|last night|now|current|latest|recent)\b/i.test(lowerPrompt);
-    const hasSportsContext = /\b(game|match|score|beat|defeat|win|loss|playing)\b/i.test(lowerPrompt);
-    const hasNewsContext = /\b(news|happening|event|announcement)\b/i.test(lowerPrompt);
+    // Additional contextual checks
+    const hasTimeWord = /\b(today|tonight|yesterday|tomorrow|now|current|latest|recent|last night|this morning|this evening)\b/i.test(lowerPrompt);
+    const hasSportsWord = /\b(game|match|score|beat|defeat|win|loss|playing|played|finals|playoff|championship)\b/i.test(lowerPrompt);
+    const hasQuestionWord = /^(who|what|when|where|how|did|is there|are there|was there)/i.test(lowerPrompt);
     
-    // Only search if we have time context AND another context
-    return hasTimeContext && (hasSportsContext || hasNewsContext);
+    // If it's a question about time-sensitive sports, search
+    if (hasQuestionWord && hasTimeWord && hasSportsWord) {
+      console.log('🎯 Web search REQUIRED (contextual match) for query:', prompt);
+      return true;
+    }
+    
+    return false;
   }
 
   async generateResponse(prompt: string, context: AIContext): Promise<AIResponse> {
+    const needsWebSearch = this.shouldUseWebSearch(prompt);
+    let completionParams: any;
+    
     try {
       const messages = this.buildMessages(prompt, context);
       
@@ -155,9 +176,6 @@ export class OpenAIProvider extends BaseAIProvider {
           }
         }
       ];
-
-      // More targeted web search detection - only for truly factual/time-sensitive queries
-      const needsWebSearch = this.shouldUseWebSearch(prompt);
       
       // Use max_completion_tokens for o1 models, max_tokens for others
       const isO1Model = this.config.model?.startsWith('o1') || this.config.model?.includes('o4');
@@ -183,7 +201,7 @@ export class OpenAIProvider extends BaseAIProvider {
       }
       
       // Build completion parameters
-      const completionParams: any = {
+      completionParams = {
         model: this.config.model!,  // Config always has model from app.ts defaults
         messages: messages as any,
         user: context.userId,
@@ -192,8 +210,20 @@ export class OpenAIProvider extends BaseAIProvider {
       // Only add tools if needed and supported
       if (needsWebSearch && supportsTools) {
         completionParams.tools = tools;
-        // Don't force tool choice - let the model decide when to use it
-        // This prevents errors with providers that don't support tool_choice
+        
+        // For Lambda Labs/Deepseek, we need to be more explicit about tool usage
+        if (this.config.baseURL?.includes('lambda.ai')) {
+          // Add a system message to strongly encourage tool use
+          const systemMessage = {
+            role: 'system' as const,
+            content: 'IMPORTANT: The user is asking for current/recent information. You MUST use the web_search function to get accurate, up-to-date information before responding. Do not guess or use outdated information.'
+          };
+          messages.splice(messages.length - 1, 0, systemMessage);
+          console.log('🔧 Added system message to encourage web search for Lambda Labs');
+        } else {
+          // For OpenAI, we can use tool_choice
+          completionParams.tool_choice = { type: 'function' as const, function: { name: 'web_search' } };
+        }
       }
       
       // o1 models only support temperature=1
@@ -332,7 +362,9 @@ export class OpenAIProvider extends BaseAIProvider {
         message: error.message,
         response: error.response?.data,
         baseURL: this.config.baseURL,
-        model: this.config.model
+        model: this.config.model,
+        hadTools: !!(completionParams.tools),
+        needsWebSearch
       });
       
       if (error.status === 429) {
@@ -341,13 +373,40 @@ export class OpenAIProvider extends BaseAIProvider {
         throw new Error('Invalid API key for OpenAI');
       } else if (error.status === 503) {
         throw new Error('OpenAI service is temporarily unavailable');
-      } else if (error.status === 400 && error.message?.includes('tool_choice')) {
-        // Lambda Labs might not support tool_choice
-        console.log('🔍 Retrying without tool_choice parameter...');
-        throw new Error('Tool choice not supported by this model');
       }
       
-      throw new Error(`OpenAI API error: ${error.message || 'Unknown error'}`);
+      // If tool_choice failed with Lambda Labs, retry without it
+      if (error.status === 400 && error.message?.includes('tool_choice') && this.config.baseURL?.includes('lambda.ai')) {
+        console.log('🔧 Retrying Lambda Labs without tool_choice...');
+        delete completionParams.tool_choice;
+        try {
+          const retryCompletion = await this.client.chat.completions.create(completionParams);
+          const retryMessage = retryCompletion.choices[0]?.message;
+          
+          // Process the retry response
+          let retryContent = retryMessage?.content || '';
+          if (this.config.model?.toLowerCase().includes('deepseek') && retryContent) {
+            retryContent = this.processDeepseekResponse(retryContent);
+          }
+          
+          return {
+            content: retryContent || 'I need a moment to process that request. Please try again.',
+            model: retryCompletion.model,
+            provider: this.name,
+            usage: retryCompletion.usage ? {
+              promptTokens: retryCompletion.usage.prompt_tokens,
+              completionTokens: retryCompletion.usage.completion_tokens,
+              totalTokens: retryCompletion.usage.total_tokens,
+            } : undefined,
+            timestamp: Date.now(),
+          };
+        } catch (retryError) {
+          console.error('🔍 Retry also failed:', retryError);
+          // Fall through to throw original error
+        }
+      }
+      
+      throw new Error(`API error: ${error.message || 'Unknown error'}`);
     }
   }
 
@@ -363,15 +422,26 @@ export class OpenAIProvider extends BaseAIProvider {
         
         switch (functionName) {
           case 'web_search':
-            const generalSearchResults = await this.webSearch.search(args.query);
-            result = {
-              success: true,
-              results: generalSearchResults.map(r => ({
-                title: r.title,
-                url: r.url,
-                snippet: r.snippet
-              }))
-            };
+            console.log('🔍 Executing web search for:', args.query);
+            try {
+              const generalSearchResults = await this.webSearch.search(args.query);
+              result = {
+                success: true,
+                results: generalSearchResults.map(r => ({
+                  title: r.title,
+                  url: r.url,
+                  snippet: r.snippet
+                }))
+              };
+              console.log('✅ Web search successful, found', generalSearchResults.length, 'results');
+            } catch (searchError: any) {
+              console.error('❌ Web search failed:', searchError);
+              result = {
+                success: false,
+                error: `Web search failed: ${searchError.message || 'Unknown error'}`,
+                fallbackMessage: 'I need current information to answer this question accurately. Please check recent sources.'
+              };
+            }
             break;
             
           case 'search_nba_stats':
