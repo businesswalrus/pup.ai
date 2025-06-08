@@ -59,16 +59,24 @@ export class OpenAIProvider extends BaseAIProvider {
     
     // ALWAYS search for these patterns - no exceptions
     const mustSearchPatterns = [
+      // NBA Finals - ALWAYS search for these
+      /\bnba\s+finals/i,
+      /\bfinals.*\b(nba|basketball)/i,
+      
+      // "When" + sports queries
+      /\bwhen('?s|\s+is|\s+are).*\b(nba|nfl|mlb|nhl|game|match|finals|playoff)/i,
+      /\b(next|upcoming).*\b(nba|nfl|mlb|nhl|game|match|finals|playoff)/i,
+      
       // Any sports query with time reference
-      /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf).*\b(tonight|today|yesterday|tomorrow|last night)/i,
-      /\b(tonight|today|yesterday|tomorrow|last night).*\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf)/i,
+      /\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf).*\b(tonight|today|yesterday|tomorrow|last night|next)/i,
+      /\b(tonight|today|yesterday|tomorrow|last night|next).*\b(nba|nfl|mlb|nhl|soccer|football|basketball|baseball|hockey|tennis|golf)/i,
       
       // "Who won" or "who beat" queries
-      /\bwho\s+(won|beat|defeated|lost)/i,
+      /\bwho\s+(won|beat|defeated|lost|playing|plays)/i,
       /\b(score|result|outcome)[\s\w]*(of|from|in|for)/i,
       
       // Finals, playoffs, championships with any time context
-      /\b(finals|playoff|championship|tournament|match|game).*\b(tonight|today|yesterday|tomorrow|last night|this week)/i,
+      /\b(finals|playoff|championship|tournament|match|game).*\b(tonight|today|yesterday|tomorrow|last night|this week|next)/i,
       
       // Weather queries
       /\b(weather|temperature|forecast|rain|snow)/i,
@@ -217,7 +225,13 @@ export class OpenAIProvider extends BaseAIProvider {
           // Just add a system message to strongly encourage tool use
           const systemMessage = {
             role: 'system' as const,
-            content: 'IMPORTANT: The user is asking for current/recent information. You MUST use the web_search function to get accurate, up-to-date information before responding. Do not guess or use outdated information.'
+            content: `CRITICAL: This query requires current information. You MUST:
+1. Use the web_search function FIRST
+2. Base your response ONLY on the search results
+3. DO NOT make up teams, scores, dates, or any information
+4. If search results mention specific teams (like Pacers vs Thunder), use THOSE teams
+5. NEVER use outdated information like "Celtics vs Mavericks" if that's not in the search results
+The user expects accurate, real-time information.`
           };
           console.log('🔧 Adding system message to encourage web search for Lambda Labs');
           console.log('📋 Messages before splice:', messages.length, 'messages');
@@ -316,6 +330,14 @@ export class OpenAIProvider extends BaseAIProvider {
         // Add tool results to messages
         for (const result of toolResults) {
           messages.push(result as any);
+        }
+        
+        // Add system message for Lambda Labs to emphasize using search results
+        if (this.config.baseURL?.includes('lambda.ai')) {
+          messages.push({
+            role: 'system',
+            content: 'You now have the search results. Base your response ONLY on these results. Do not make up any information not found in the search results.'
+          } as any);
         }
         
         // Make a follow-up call with the tool results
@@ -484,6 +506,11 @@ export class OpenAIProvider extends BaseAIProvider {
                 }))
               };
               console.log('✅ Web search successful, found', generalSearchResults.length, 'results');
+              // Log first few results for debugging
+              generalSearchResults.slice(0, 3).forEach((r, i) => {
+                console.log(`  Result ${i + 1}: ${r.title}`);
+                console.log(`    ${r.snippet.substring(0, 150)}...`);
+              });
             } catch (searchError: any) {
               console.error('❌ Web search failed:', searchError);
               result = {
