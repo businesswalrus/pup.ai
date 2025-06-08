@@ -213,7 +213,8 @@ export class OpenAIProvider extends BaseAIProvider {
         
         // For Lambda Labs/Deepseek, we need to be more explicit about tool usage
         if (this.config.baseURL?.includes('lambda.ai')) {
-          // Add a system message to strongly encourage tool use
+          // Lambda Labs doesn't support tool_choice at all, not even "auto"
+          // Just add a system message to strongly encourage tool use
           const systemMessage = {
             role: 'system' as const,
             content: 'IMPORTANT: The user is asking for current/recent information. You MUST use the web_search function to get accurate, up-to-date information before responding. Do not guess or use outdated information.'
@@ -222,6 +223,7 @@ export class OpenAIProvider extends BaseAIProvider {
           console.log('📋 Messages before splice:', messages.length, 'messages');
           messages.splice(messages.length - 1, 0, systemMessage);
           console.log('📋 Messages after splice:', messages.length, 'messages');
+          // Do NOT set tool_choice for Lambda Labs
         } else {
           // For OpenAI, we can use tool_choice
           completionParams.tool_choice = { type: 'function' as const, function: { name: 'web_search' } };
@@ -251,6 +253,13 @@ export class OpenAIProvider extends BaseAIProvider {
       
       const completion = await this.client.chat.completions.create(completionParams);
 
+      // Check if we got an error response instead of a completion
+      if (completion && (completion as any).object === 'error') {
+        console.error('🚨 API returned error object:', completion);
+        const errorMsg = (completion as any).message || 'Unknown API error';
+        throw new Error(`API error: ${errorMsg}`);
+      }
+      
       // Defensive checks for response structure
       if (!completion || !completion.choices || completion.choices.length === 0) {
         console.error('🚨 Invalid API response structure:', completion);
