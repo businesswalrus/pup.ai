@@ -218,8 +218,10 @@ export class OpenAIProvider extends BaseAIProvider {
             role: 'system' as const,
             content: 'IMPORTANT: The user is asking for current/recent information. You MUST use the web_search function to get accurate, up-to-date information before responding. Do not guess or use outdated information.'
           };
+          console.log('🔧 Adding system message to encourage web search for Lambda Labs');
+          console.log('📋 Messages before splice:', messages.length, 'messages');
           messages.splice(messages.length - 1, 0, systemMessage);
-          console.log('🔧 Added system message to encourage web search for Lambda Labs');
+          console.log('📋 Messages after splice:', messages.length, 'messages');
         } else {
           // For OpenAI, we can use tool_choice
           completionParams.tool_choice = { type: 'function' as const, function: { name: 'web_search' } };
@@ -239,7 +241,21 @@ export class OpenAIProvider extends BaseAIProvider {
         completionParams.max_tokens = this.config.maxTokens || 1000;
       }
       
+      console.log('🚀 Calling API with params:', {
+        model: completionParams.model,
+        messageCount: completionParams.messages.length,
+        hasTools: !!(completionParams.tools),
+        toolChoice: completionParams.tool_choice,
+        temperature: completionParams.temperature
+      });
+      
       const completion = await this.client.chat.completions.create(completionParams);
+
+      // Defensive checks for response structure
+      if (!completion || !completion.choices || completion.choices.length === 0) {
+        console.error('🚨 Invalid API response structure:', completion);
+        throw new Error('Invalid response from API - no choices returned');
+      }
 
       const message = completion.choices[0]?.message;
       
@@ -255,7 +271,7 @@ export class OpenAIProvider extends BaseAIProvider {
         // Log the processing if content was modified
         if (rawContent !== responseContent) {
           console.log('🧹 Deepseek Response Processing:', {
-            model: completion.model,
+            model: completion.model || this.config.model || 'unknown',
             rawLength: rawContent.length,
             processedLength: responseContent.length,
             removedThinking: rawContent.includes('<think') || rawContent.includes('<thinking'),
@@ -267,7 +283,7 @@ export class OpenAIProvider extends BaseAIProvider {
       // Enhanced debug logging for Lambda Labs responses
       if (this.config.baseURL?.includes('lambda.ai')) {
         console.log('🤖 Lambda Labs Response Debug:', {
-          model: completion.model,
+          model: completion.model || this.config.model || 'unknown',
           hasToolCalls: !!(message?.tool_calls && message.tool_calls.length > 0),
           toolCallsCount: message?.tool_calls?.length || 0,
           finishReason: completion.choices[0]?.finish_reason,
@@ -313,6 +329,12 @@ export class OpenAIProvider extends BaseAIProvider {
         
         const followUpCompletion = await this.client.chat.completions.create(followUpParams);
         
+        // Defensive checks for follow-up response structure
+        if (!followUpCompletion || !followUpCompletion.choices || followUpCompletion.choices.length === 0) {
+          console.error('🚨 Invalid follow-up response structure:', followUpCompletion);
+          throw new Error('Invalid follow-up response from API');
+        }
+        
         let finalResponse = followUpCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
         
         // Process Deepseek responses to remove thinking tags
@@ -326,7 +348,7 @@ export class OpenAIProvider extends BaseAIProvider {
         
         return {
           content: finalResponse,
-          model: followUpCompletion.model,
+          model: followUpCompletion.model || this.config.model || 'unknown',
           provider: this.name,
           usage: usage ? {
             promptTokens: usage.prompt_tokens,
@@ -346,7 +368,7 @@ export class OpenAIProvider extends BaseAIProvider {
 
       return {
         content: response,
-        model: completion.model,
+        model: completion.model || this.config.model || 'unknown',
         provider: this.name,
         usage: usage ? {
           promptTokens: usage.prompt_tokens,
@@ -376,11 +398,25 @@ export class OpenAIProvider extends BaseAIProvider {
       }
       
       // If tool_choice failed with Lambda Labs, retry without it
-      if (error.status === 400 && error.message?.includes('tool_choice') && this.config.baseURL?.includes('lambda.ai')) {
-        console.log('🔧 Retrying Lambda Labs without tool_choice...');
+      // Check for various error patterns that indicate tool_choice isn't supported
+      const isToolChoiceError = error.status === 400 && 
+        (error.message?.includes('tool_choice') || 
+         error.message?.includes('Invalid parameter') ||
+         error.response?.data?.error?.message?.includes('tool_choice') ||
+         (needsWebSearch && completionParams.tool_choice));
+         
+      if (isToolChoiceError && this.config.baseURL?.includes('lambda.ai')) {
+        console.log('🔧 Lambda Labs may not support tool_choice, retrying without it...');
         delete completionParams.tool_choice;
         try {
           const retryCompletion = await this.client.chat.completions.create(completionParams);
+          
+          // Defensive checks for response structure
+          if (!retryCompletion || !retryCompletion.choices || retryCompletion.choices.length === 0) {
+            console.error('🚨 Invalid retry response structure:', retryCompletion);
+            throw new Error('Invalid response from API');
+          }
+          
           const retryMessage = retryCompletion.choices[0]?.message;
           
           // Process the retry response
@@ -391,7 +427,7 @@ export class OpenAIProvider extends BaseAIProvider {
           
           return {
             content: retryContent || 'I need a moment to process that request. Please try again.',
-            model: retryCompletion.model,
+            model: retryCompletion.model || this.config.model || 'unknown',
             provider: this.name,
             usage: retryCompletion.usage ? {
               promptTokens: retryCompletion.usage.prompt_tokens,
@@ -400,8 +436,13 @@ export class OpenAIProvider extends BaseAIProvider {
             } : undefined,
             timestamp: Date.now(),
           };
-        } catch (retryError) {
+        } catch (retryError: any) {
           console.error('🔍 Retry also failed:', retryError);
+          console.error('🔍 Retry error details:', {
+            status: retryError.status,
+            message: retryError.message,
+            response: retryError.response?.data
+          });
           // Fall through to throw original error
         }
       }
