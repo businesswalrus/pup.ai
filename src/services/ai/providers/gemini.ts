@@ -107,9 +107,9 @@ export class GeminiProvider extends BaseAIProvider {
       console.log('[Gemini] Raw response:', JSON.stringify({
         candidates: response.candidates?.length || 0,
         candidateDetails: response.candidates?.[0] ? {
-          hasContent: !!response.candidates[0].content,
-          finishReason: response.candidates[0].finishReason,
-          safetyRatings: response.candidates[0].safetyRatings?.length || 0
+          hasContent: !!response.candidates?.[0]?.content,
+          finishReason: response.candidates?.[0]?.finishReason,
+          safetyRatings: response.candidates?.[0]?.safetyRatings?.length || 0
         } : 'no candidates'
       }, null, 2));
       
