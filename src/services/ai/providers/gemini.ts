@@ -106,7 +106,6 @@ export class GeminiProvider extends BaseAIProvider {
       // Debug logging
       console.log('[Gemini] Raw response:', JSON.stringify({
         candidates: response.candidates?.length || 0,
-        text: response.text ? 'has text method' : 'no text method',
         candidateDetails: response.candidates?.[0] ? {
           hasContent: !!response.candidates[0].content,
           finishReason: response.candidates[0].finishReason,
