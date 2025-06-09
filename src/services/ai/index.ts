@@ -40,7 +40,17 @@ export class AIService {
     this.promptManager = new PromptManager();
     
     // Set active provider
-    this.setActiveProvider(config.defaultProvider);
+    try {
+      this.setActiveProvider(config.defaultProvider);
+    } catch (error) {
+      console.error('Failed to set default provider:', error);
+      // Try to set the first available provider
+      const availableProviders = Array.from(this.providers.keys());
+      if (availableProviders.length > 0) {
+        this.setActiveProvider(availableProviders[0] as AIProviderType);
+        console.log(`Fallback to first available provider: ${availableProviders[0]}`);
+      }
+    }
   }
 
   private initializeProviders(): void {
@@ -185,10 +195,11 @@ export class AIService {
   setActiveProvider(providerType: AIProviderType): void {
     const provider = this.providers.get(providerType);
     if (!provider) {
+      console.error(`Provider ${providerType} not available. Available providers:`, Array.from(this.providers.keys()));
       throw new Error(`Provider ${providerType} not available`);
     }
     this.activeProvider = provider;
-    console.log(`Active AI provider set to: ${providerType}`);
+    console.log(`Active AI provider set to: ${providerType} (${provider.getModel()})`);
   }
 
   getActiveProvider(): string | null {

@@ -468,7 +468,7 @@ export class PupAI {
     try {
       const aiConfig: AIServiceConfig = {
         providers: {},
-        defaultProvider: 'gemini',
+        defaultProvider: 'openai', // Will be overridden if Gemini is available
         cache: {
           ttl: 5 * 60 * 1000, // 5 minutes
           maxSize: 1000,
@@ -487,41 +487,7 @@ export class PupAI {
         systemPrompt: this.createSystemPrompt()
       };
 
-      // Check for Lambda Labs configuration (uses OpenAI-compatible API)
-      if (process.env.LAMBDA_API_KEY) {
-        aiConfig.providers.openai = {
-          apiKey: process.env.LAMBDA_API_KEY,
-          model: process.env.LAMBDA_MODEL || 'deepseek-r1-0528',
-          maxTokens: process.env.LAMBDA_MAX_TOKENS ? parseInt(process.env.LAMBDA_MAX_TOKENS) : 2000,
-          temperature: process.env.LAMBDA_TEMPERATURE ? parseFloat(process.env.LAMBDA_TEMPERATURE) : 0.7,
-          baseURL: 'https://api.lambda.ai/v1'
-        };
-      }
-      // Check for OpenAI configuration
-      else if (process.env.OPENAI_API_KEY) {
-        aiConfig.providers.openai = {
-          apiKey: process.env.OPENAI_API_KEY,
-          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-          maxTokens: process.env.OPENAI_MAX_TOKENS ? parseInt(process.env.OPENAI_MAX_TOKENS) : 1000,
-          temperature: process.env.OPENAI_TEMPERATURE ? parseFloat(process.env.OPENAI_TEMPERATURE) : 0.7
-        };
-      }
-
-      // Check for Anthropic configuration
-      if (process.env.ANTHROPIC_API_KEY) {
-        aiConfig.providers.anthropic = {
-          apiKey: process.env.ANTHROPIC_API_KEY,
-          model: process.env.ANTHROPIC_MODEL || 'claude-3-opus-20240229',
-          maxTokens: 1000,
-          temperature: 0.7
-        };
-        // If Anthropic is available and no OpenAI/Lambda, use Anthropic as default
-        if (!process.env.OPENAI_API_KEY && !process.env.LAMBDA_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
-          aiConfig.defaultProvider = 'anthropic';
-        }
-      }
-      
-      // Check for Google Gemini configuration
+      // Check for Google Gemini configuration FIRST (preferred provider)
       if (process.env.GOOGLE_GENAI_API_KEY) {
         aiConfig.providers.gemini = {
           apiKey: process.env.GOOGLE_GENAI_API_KEY,
@@ -533,9 +499,62 @@ export class PupAI {
         aiConfig.defaultProvider = 'gemini';
       }
 
+      // Check for Lambda Labs configuration (uses OpenAI-compatible API)
+      if (process.env.LAMBDA_API_KEY) {
+        aiConfig.providers.openai = {
+          apiKey: process.env.LAMBDA_API_KEY,
+          model: process.env.LAMBDA_MODEL || 'deepseek-r1-0528',
+          maxTokens: process.env.LAMBDA_MAX_TOKENS ? parseInt(process.env.LAMBDA_MAX_TOKENS) : 2000,
+          temperature: process.env.LAMBDA_TEMPERATURE ? parseFloat(process.env.LAMBDA_TEMPERATURE) : 0.7,
+          baseURL: 'https://api.lambda.ai/v1'
+        };
+        // Only use Lambda/OpenAI as default if Gemini isn't configured
+        if (!process.env.GOOGLE_GENAI_API_KEY) {
+          aiConfig.defaultProvider = 'openai';
+        }
+      }
+      // Check for OpenAI configuration
+      else if (process.env.OPENAI_API_KEY) {
+        aiConfig.providers.openai = {
+          apiKey: process.env.OPENAI_API_KEY,
+          model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+          maxTokens: process.env.OPENAI_MAX_TOKENS ? parseInt(process.env.OPENAI_MAX_TOKENS) : 1000,
+          temperature: process.env.OPENAI_TEMPERATURE ? parseFloat(process.env.OPENAI_TEMPERATURE) : 0.7
+        };
+        // Only use OpenAI as default if Gemini isn't configured
+        if (!process.env.GOOGLE_GENAI_API_KEY) {
+          aiConfig.defaultProvider = 'openai';
+        }
+      }
+
+      // Check for Anthropic configuration
+      if (process.env.ANTHROPIC_API_KEY) {
+        aiConfig.providers.anthropic = {
+          apiKey: process.env.ANTHROPIC_API_KEY,
+          model: process.env.ANTHROPIC_MODEL || 'claude-3-opus-20240229',
+          maxTokens: 1000,
+          temperature: 0.7
+        };
+        // Only use Anthropic as default if no other providers are configured
+        if (!process.env.OPENAI_API_KEY && !process.env.LAMBDA_API_KEY && !process.env.GOOGLE_GENAI_API_KEY) {
+          aiConfig.defaultProvider = 'anthropic';
+        }
+      }
+
       // Only initialize if at least one provider is configured
       if (aiConfig.providers.openai || aiConfig.providers.anthropic || aiConfig.providers.gemini) {
         this.aiService = new AIService(aiConfig);
+        
+        // Force Gemini as active provider if it's available
+        if (aiConfig.providers.gemini && this.aiService.getAvailableProviders().includes('gemini')) {
+          try {
+            this.aiService.setActiveProvider('gemini');
+            console.log('✅ Switched to Gemini as primary provider');
+          } catch (error) {
+            console.log('⚠️ Could not switch to Gemini, using:', this.aiService.getActiveProvider());
+          }
+        }
+        
         console.log('✅ AI service initialized with provider:', this.aiService.getActiveProvider());
       } else {
         console.log('⚠️ No AI providers configured. Bot will run without AI capabilities.');
