@@ -102,7 +102,28 @@ export class GeminiProvider extends BaseAIProvider {
       
       result = await chat.sendMessage(prompt);
       const response = await result.response;
+      
+      // Debug logging
+      console.log('[Gemini] Raw response:', JSON.stringify({
+        candidates: response.candidates?.length || 0,
+        text: response.text ? 'has text method' : 'no text method',
+        candidateDetails: response.candidates?.[0] ? {
+          hasContent: !!response.candidates[0].content,
+          finishReason: response.candidates[0].finishReason,
+          safetyRatings: response.candidates[0].safetyRatings?.length || 0
+        } : 'no candidates'
+      }, null, 2));
+      
       const text = response.text();
+      
+      // Check for empty response
+      if (!text || text.trim().length === 0) {
+        console.error('[Gemini] Empty response received!', {
+          finishReason: response.candidates?.[0]?.finishReason,
+          safetyRatings: response.candidates?.[0]?.safetyRatings
+        });
+        throw new Error('Gemini returned an empty response. This might be due to safety filters or an invalid model.');
+      }
       
       const endTime = Date.now();
       console.log(`[Gemini] Response generated in ${endTime - startTime}ms`);

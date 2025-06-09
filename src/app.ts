@@ -128,7 +128,10 @@ export class PupAI {
               let enhancedPrompt = cleanText;
               let searchContext = '';
               
-              if (this.webSearchService.shouldSearch(cleanText)) {
+              // Skip manual web search if using Gemini (it has built-in grounding)
+              const isUsingGemini = this.aiService && this.aiService.getActiveProvider() === 'gemini';
+              
+              if (!isUsingGemini && this.webSearchService.shouldSearch(cleanText)) {
                 console.log('🔍 Web search triggered for query:', cleanText);
                 const searchResults = await this.webSearchService.search(cleanText);
                 
@@ -141,6 +144,8 @@ export class PupAI {
                   enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
                   console.log('🔍 Added web search context to prompt');
                 }
+              } else if (isUsingGemini && this.webSearchService.shouldSearch(cleanText)) {
+                console.log('🔍 Skipping manual web search - Gemini has built-in grounding');
               }
               
               const aiResponse = await this.aiService.generateResponse(
@@ -396,7 +401,10 @@ export class PupAI {
             let enhancedPrompt = text;
             let searchContext = '';
             
-            if (this.webSearchService.shouldSearch(text)) {
+            // Skip manual web search if using Gemini (it has built-in grounding)
+            const isUsingGemini = this.aiService && this.aiService.getActiveProvider() === 'gemini';
+            
+            if (!isUsingGemini && this.webSearchService.shouldSearch(text)) {
               console.log('🔍 Web search triggered for app mention:', text);
               const searchResults = await this.webSearchService.search(text);
               
@@ -409,6 +417,8 @@ export class PupAI {
                 enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
                 console.log('🔍 Added web search context to app mention');
               }
+            } else if (isUsingGemini && this.webSearchService.shouldSearch(text)) {
+              console.log('🔍 Skipping manual web search - Gemini has built-in grounding');
             }
             
             const aiResponse = await this.aiService.generateResponse(
