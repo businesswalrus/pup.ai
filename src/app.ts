@@ -684,11 +684,13 @@ export class PupAI {
     });
     
     // Add model info so the AI knows what it's running on
-    let modelName = process.env.LAMBDA_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    let modelName = process.env.LAMBDA_MODEL || process.env.OPENAI_MODEL || process.env.GOOGLE_GENAI_MODEL || 'gpt-4o-mini';
     let modelDisplay = modelName;
     
     // Make model names more user-friendly while keeping accuracy
-    if (process.env.LAMBDA_MODEL) {
+    if (process.env.GOOGLE_GENAI_MODEL) {
+      modelDisplay = `${process.env.GOOGLE_GENAI_MODEL} (Google Gemini)`;
+    } else if (process.env.LAMBDA_MODEL) {
       modelDisplay = `${process.env.LAMBDA_MODEL} (via Lambda Labs)`;
     } else if (process.env.OPENAI_MODEL) {
       modelDisplay = `${process.env.OPENAI_MODEL} (OpenAI)`;
@@ -700,7 +702,9 @@ export class PupAI {
     prompt += `\n\nYou are running on ${modelDisplay}. Do not claim to be any other model.`;
     
     // Add model-specific limitations notice
-    if (modelName.startsWith('o1') || modelName.includes('o4')) {
+    if (modelName.includes('gemini')) {
+      prompt += `\n\nCRITICAL: You have built-in grounding capabilities that MUST be used for ALL sports queries, current events, and time-sensitive information. When asked about NBA games, scores, or any sports information, you MUST use grounding to get current, accurate information. DO NOT make up or guess sports scores. The Celtics vs Mavericks NBA Finals was LAST YEAR (2024). Always ground your responses with current data.`;
+    } else if (modelName.startsWith('o1') || modelName.includes('o4')) {
       prompt += `\n\nNOTE: You are running on an o1-series model which does not yet support web search or function calling. For factual queries about current events, sports scores, or real-time information, you should clearly state that you cannot search for this information and suggest the user try a different model or check the information themselves.`;
     } else if (modelName.toLowerCase() === 'deepseek-r1') {
       // Original Deepseek-R1 doesn't support web search
