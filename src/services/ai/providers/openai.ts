@@ -19,7 +19,7 @@ export class OpenAIProvider extends BaseAIProvider {
       timeout: this.config.timeout || 30000,
     };
     
-    // Support custom base URL for Lambda Labs or other OpenAI-compatible APIs
+    // Support custom base URL for OpenAI-compatible APIs
     if (this.config.baseURL) {
       clientConfig.baseURL = this.config.baseURL;
     }
@@ -28,31 +28,6 @@ export class OpenAIProvider extends BaseAIProvider {
     this.webSearch = new WebSearchService();
   }
 
-  private processDeepseekResponse(content: string): string {
-    // Deepseek models often include thinking process in tags
-    // Strip out <think>, <thinking>, </think>, </thinking> tags and everything between them
-    let processed = content;
-    
-    // Remove <think>...</think> blocks
-    processed = processed.replace(/<think[^>]*>([\s\S]*?)<\/think>/gi, '');
-    
-    // Remove <thinking>...</thinking> blocks
-    processed = processed.replace(/<thinking[^>]*>([\s\S]*?)<\/thinking>/gi, '');
-    
-    // Also remove standalone tags in case they're not properly paired
-    processed = processed.replace(/<\/?think[^>]*>/gi, '');
-    processed = processed.replace(/<\/?thinking[^>]*>/gi, '');
-    
-    // Trim any leading/trailing whitespace
-    processed = processed.trim();
-    
-    // If we stripped everything, return a fallback
-    if (!processed) {
-      return "I need a moment to process that. Please try again.";
-    }
-    
-    return processed;
-  }
 
   private shouldUseWebSearch(prompt: string): boolean {
     const lowerPrompt = prompt.toLowerCase();
@@ -188,25 +163,9 @@ export class OpenAIProvider extends BaseAIProvider {
       // Use max_completion_tokens for o1 models, max_tokens for others
       const isO1Model = this.config.model?.startsWith('o1') || this.config.model?.includes('o4');
       
-      // Check for specific Deepseek versions - R1-0528 supports function calling!
-      const modelLower = this.config.model?.toLowerCase() || '';
-      const isDeepseekR1Original = modelLower === 'deepseek-r1' && !modelLower.includes('0528');
+      // o1 models don't support function calling
+      const supportsTools = !isO1Model;
       
-      // o1 models and original Deepseek R1 don't support function calling
-      // BUT Deepseek-R1-0528 DOES support it!
-      const supportsTools = !isO1Model && !isDeepseekR1Original;
-      
-      // Enhanced debug logging for Lambda Labs
-      if (this.config.baseURL?.includes('lambda.ai')) {
-        console.log('🤖 Lambda Labs Request Debug:', {
-          model: this.config.model,
-          baseURL: this.config.baseURL,
-          needsWebSearch,
-          supportsTools,
-          temperature: needsWebSearch ? 0.3 : (this.config.temperature ?? 0.7),
-          promptPreview: prompt.substring(0, 150) + '...'
-        });
-      }
       
       // Build completion parameters
       completionParams = {
@@ -217,25 +176,9 @@ export class OpenAIProvider extends BaseAIProvider {
       
       // Only add tools if needed and supported
       if (needsWebSearch && supportsTools) {
-        // Lambda Labs has issues with tools - skip entirely
-        if (this.config.baseURL?.includes('lambda.ai')) {
-          // Don't add tools for Lambda Labs - it causes errors
-          const systemMessage = {
-            role: 'system' as const,
-            content: `This query requires current information. Since you cannot search directly, please:
-1. Be honest that you don't have real-time access
-2. Direct the user to check ESPN, news sites, or official sources
-3. DO NOT make up teams, scores, dates, or any information
-4. If asked about current sports/news/weather, say "I don't have real-time access. Check [appropriate website]"`
-          };
-          console.log('🔧 Lambda Labs cannot use tools - adding fallback message');
-          messages.splice(messages.length - 1, 0, systemMessage);
-          // Don't add tools or tool_choice for Lambda
-        } else {
-          // For OpenAI, we can use tools normally
-          completionParams.tools = tools;
-          completionParams.tool_choice = { type: 'function' as const, function: { name: 'web_search' } };
-        }
+        // For OpenAI, we can use tools normally
+        completionParams.tools = tools;
+        completionParams.tool_choice = { type: 'function' as const, function: { name: 'web_search' } };
       }
       
       // o1 models only support temperature=1
@@ -276,39 +219,9 @@ export class OpenAIProvider extends BaseAIProvider {
 
       const message = completion.choices[0]?.message;
       
-      // Process response content if it's from Deepseek
+      // Get response content
       let responseContent = message?.content || '';
-      const isDeepseek = this.config.model?.toLowerCase().includes('deepseek') || 
-                         completion.model?.toLowerCase().includes('deepseek');
       
-      if (isDeepseek && responseContent) {
-        const rawContent = responseContent;
-        responseContent = this.processDeepseekResponse(responseContent);
-        
-        // Log the processing if content was modified
-        if (rawContent !== responseContent) {
-          console.log('🧹 Deepseek Response Processing:', {
-            model: completion.model || this.config.model || 'unknown',
-            rawLength: rawContent.length,
-            processedLength: responseContent.length,
-            removedThinking: rawContent.includes('<think') || rawContent.includes('<thinking'),
-            processedPreview: responseContent.substring(0, 200) + '...'
-          });
-        }
-      }
-      
-      // Enhanced debug logging for Lambda Labs responses
-      if (this.config.baseURL?.includes('lambda.ai')) {
-        console.log('🤖 Lambda Labs Response Debug:', {
-          model: completion.model || this.config.model || 'unknown',
-          hasToolCalls: !!(message?.tool_calls && message.tool_calls.length > 0),
-          toolCallsCount: message?.tool_calls?.length || 0,
-          finishReason: completion.choices[0]?.finish_reason,
-          usage: completion.usage,
-          rawResponsePreview: message?.content?.substring(0, 200) + '...',
-          processedResponsePreview: responseContent.substring(0, 200) + '...'
-        });
-      }
       
       // Handle tool calls if present
       if (message?.tool_calls && message.tool_calls.length > 0) {
@@ -326,13 +239,6 @@ export class OpenAIProvider extends BaseAIProvider {
           messages.push(result as any);
         }
         
-        // Add system message for Lambda Labs to emphasize using search results
-        if (this.config.baseURL?.includes('lambda.ai')) {
-          messages.push({
-            role: 'system',
-            content: 'You now have the search results. Base your response ONLY on these results. Do not make up any information not found in the search results.'
-          } as any);
-        }
         
         // Make a follow-up call with the tool results
         const followUpParams: any = {
@@ -361,13 +267,6 @@ export class OpenAIProvider extends BaseAIProvider {
         }
         
         let finalResponse = followUpCompletion.choices[0]?.message?.content || 'I found the information but had trouble formatting my response. Please try asking again.';
-        
-        // Process Deepseek responses to remove thinking tags
-        const isDeepseekFollowUp = this.config.model?.toLowerCase().includes('deepseek') || 
-                                   followUpCompletion.model?.toLowerCase().includes('deepseek');
-        if (isDeepseekFollowUp && finalResponse) {
-          finalResponse = this.processDeepseekResponse(finalResponse);
-        }
         
         const usage = followUpCompletion.usage;
         
@@ -422,55 +321,6 @@ export class OpenAIProvider extends BaseAIProvider {
         throw new Error('OpenAI service is temporarily unavailable');
       }
       
-      // If tool_choice failed with Lambda Labs, retry without it
-      // Check for various error patterns that indicate tool_choice isn't supported
-      const isToolChoiceError = error.status === 400 && 
-        (error.message?.includes('tool_choice') || 
-         error.message?.includes('Invalid parameter') ||
-         error.response?.data?.error?.message?.includes('tool_choice') ||
-         (needsWebSearch && completionParams.tool_choice));
-         
-      if (isToolChoiceError && this.config.baseURL?.includes('lambda.ai')) {
-        console.log('🔧 Lambda Labs may not support tool_choice, retrying without it...');
-        delete completionParams.tool_choice;
-        try {
-          const retryCompletion = await this.client.chat.completions.create(completionParams);
-          
-          // Defensive checks for response structure
-          if (!retryCompletion || !retryCompletion.choices || retryCompletion.choices.length === 0) {
-            console.error('🚨 Invalid retry response structure:', retryCompletion);
-            throw new Error('Invalid response from API');
-          }
-          
-          const retryMessage = retryCompletion.choices[0]?.message;
-          
-          // Process the retry response
-          let retryContent = retryMessage?.content || '';
-          if (this.config.model?.toLowerCase().includes('deepseek') && retryContent) {
-            retryContent = this.processDeepseekResponse(retryContent);
-          }
-          
-          return {
-            content: retryContent || 'I need a moment to process that request. Please try again.',
-            model: retryCompletion.model || this.config.model || 'unknown',
-            provider: this.name,
-            usage: retryCompletion.usage ? {
-              promptTokens: retryCompletion.usage.prompt_tokens,
-              completionTokens: retryCompletion.usage.completion_tokens,
-              totalTokens: retryCompletion.usage.total_tokens,
-            } : undefined,
-            timestamp: Date.now(),
-          };
-        } catch (retryError: any) {
-          console.error('🔍 Retry also failed:', retryError);
-          console.error('🔍 Retry error details:', {
-            status: retryError.status,
-            message: retryError.message,
-            response: retryError.response?.data
-          });
-          // Fall through to throw original error
-        }
-      }
       
       throw new Error(`API error: ${error.message || 'Unknown error'}`);
     }
@@ -577,7 +427,7 @@ export class OpenAIProvider extends BaseAIProvider {
       return false;
     }
     
-    // For Lambda Labs or custom endpoints, don't validate key format
+    // For custom endpoints, don't validate key format
     if (this.config.baseURL) {
       return true;
     }

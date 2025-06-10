@@ -453,24 +453,8 @@ export class PupAI {
         aiConfig.defaultProvider = 'gemini';
       }
 
-      // Check for Lambda Labs configuration (uses OpenAI-compatible API)
-      if (process.env.LAMBDA_API_KEY) {
-        aiConfig.providers.openai = {
-          apiKey: process.env.LAMBDA_API_KEY,
-          model: process.env.LAMBDA_MODEL || 'deepseek-r1-0528',
-          maxTokens: process.env.LAMBDA_MAX_TOKENS ? parseInt(process.env.LAMBDA_MAX_TOKENS) : 2000,
-          temperature: process.env.LAMBDA_TEMPERATURE ? parseFloat(process.env.LAMBDA_TEMPERATURE) : 0.7,
-          baseURL: 'https://api.lambda.ai/v1'
-        };
-        // NEVER use Lambda as default for sports queries - it can't do web search
-        // Only use it if Gemini isn't available AND user explicitly switches
-        if (!process.env.GOOGLE_GENAI_API_KEY) {
-          aiConfig.defaultProvider = 'openai';
-          console.log('⚠️ Lambda Labs set as default - no web search for sports queries!');
-        }
-      }
       // Check for OpenAI configuration
-      else if (process.env.OPENAI_API_KEY) {
+      if (process.env.OPENAI_API_KEY) {
         aiConfig.providers.openai = {
           apiKey: process.env.OPENAI_API_KEY,
           model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
@@ -636,14 +620,12 @@ export class PupAI {
     });
     
     // Add model info so the AI knows what it's running on
-    let modelName = process.env.LAMBDA_MODEL || process.env.OPENAI_MODEL || process.env.GOOGLE_GENAI_MODEL || 'gpt-4o-mini';
+    let modelName = process.env.OPENAI_MODEL || process.env.GOOGLE_GENAI_MODEL || 'gpt-4o-mini';
     let modelDisplay = modelName;
     
     // Make model names more user-friendly while keeping accuracy
     if (process.env.GOOGLE_GENAI_MODEL) {
       modelDisplay = `${process.env.GOOGLE_GENAI_MODEL} (Google Gemini)`;
-    } else if (process.env.LAMBDA_MODEL) {
-      modelDisplay = `${process.env.LAMBDA_MODEL} (via Lambda Labs)`;
     } else if (process.env.OPENAI_MODEL) {
       modelDisplay = `${process.env.OPENAI_MODEL} (OpenAI)`;
     } else if (process.env.ANTHROPIC_MODEL) {

@@ -79,11 +79,11 @@ This document contains historical entries from various dates. When reading:
    - ✅ SLACK_APP_TOKEN (optional, for socket mode)
 
 2. **AI Provider Credentials** (configured via .env):
-   - ✅ LAMBDA_API_KEY (optional - for Lambda Labs/Deepseek models)
+   - ✅ GOOGLE_GENAI_API_KEY (recommended - for Gemini models with grounding)
    - ✅ OPENAI_API_KEY (optional)
    - ✅ ANTHROPIC_API_KEY (optional)
    - ✅ Auto-detects available providers
-   - ✅ Configurable models via LAMBDA_MODEL, OPENAI_MODEL and ANTHROPIC_MODEL
+   - ✅ Configurable models via GOOGLE_GENAI_MODEL, OPENAI_MODEL and ANTHROPIC_MODEL
 
 3. **Behavioral Preferences** (configured via .env):
    - ✅ Response personality via AI_PERSONALITY (walrus/professional/casual/playful)
@@ -326,13 +326,10 @@ The current default personality ('walrus') features:
    # Option 1: Google Gemini (RECOMMENDED - Flash 2.0 with grounding)
    GOOGLE_GENAI_API_KEY=your-gemini-api-key
    
-   # Option 2: Lambda Labs (for Deepseek models)
-   LAMBDA_API_KEY=your-lambda-api-key
-   
-   # Option 3: OpenAI
+   # Option 2: OpenAI
    OPENAI_API_KEY=sk-your-key-here
    
-   # Option 4: Anthropic
+   # Option 3: Anthropic
    ANTHROPIC_API_KEY=sk-ant-your-key-here
    ```
 
@@ -353,19 +350,7 @@ The current default personality ('walrus') features:
      GOOGLE_GENAI_TEMPERATURE=0.7             # Creativity 0-2
      ```
 
-2. **Lambda Labs** (OpenAI-compatible API for advanced models):
-   - Uses Deepseek-R1-0528 with FULL web search support!
-   - No rate limits on requests
-   - Supports all OpenAI API features including function calling
-   - Configuration:
-     ```bash
-     LAMBDA_API_KEY=your-lambda-api-key
-     LAMBDA_MODEL=deepseek-r1-0528      # Default model
-     LAMBDA_MAX_TOKENS=2000             # Max response tokens
-     LAMBDA_TEMPERATURE=0.7             # Creativity 0-2
-     ```
-
-3. **OpenAI**:
+2. **OpenAI**:
    ```bash
    OPENAI_MODEL=gpt-4o-mini           # Options: gpt-4o, gpt-4o-mini, gpt-3.5-turbo, o1-mini, o1-preview
    OPENAI_MAX_TOKENS=1000            # Max response tokens (default: 1000)
@@ -444,8 +429,8 @@ AI_MAX_RESPONSE_LENGTH=200  # Target response length in words
 - `SLACK_BOT_TOKEN` - Bot OAuth token
 - `SLACK_SIGNING_SECRET` - Request validation
 - `MY_USER_ID` - Owner's Slack user ID
-- AI Provider (choose one):
-  - `LAMBDA_API_KEY` + `LAMBDA_MODEL` - Lambda Labs/Deepseek
+- AI Provider (choose one or more):
+  - `GOOGLE_GENAI_API_KEY` + `GOOGLE_GENAI_MODEL` - Google Gemini (recommended)
   - `OPENAI_API_KEY` + `OPENAI_MODEL` - OpenAI
   - `ANTHROPIC_API_KEY` - Anthropic Claude
 - **NOT** `SLACK_APP_TOKEN` - Omit to force HTTP mode
@@ -516,153 +501,7 @@ Fixed web search completely failing for obvious queries:
 
 2. **Force Tool Usage**:
    - OpenAI: Uses `tool_choice` to force web search when needed
-   - Lambda Labs: Adds system message encouraging tool use
-   - Retry logic if Lambda Labs rejects tool_choice parameter
    - No more hallucinated sports scores or made-up results
-
-3. **Response Processing**:
-   - Strips `<think>` and `<thinking>` tags from Deepseek responses
-   - Users never see internal reasoning process
-   - Clean output with comprehensive logging at each stage
-
-4. **Enhanced Logging**:
-   - 🎯 Web search detection logs
-   - 🤖 Lambda Labs request/response debugging
-   - 🧹 Deepseek response processing logs
-   - 📤 Final output to Slack logs
-   - 🔍 Web search execution and error logs
-
-### Deepseek Integration Fixes (2025-01-13)
-Major improvements to Lambda Labs/Deepseek integration for more natural behavior:
-
-1. **Smarter Web Search Detection** (Note: This was too restrictive - see fix above):
-   - Removed overly broad patterns that triggered on almost any question
-   - Now only searches for genuinely time-sensitive queries with clear context
-   - Examples that DO trigger: "who won the game last night", "current weather in NYC"
-   - Examples that DON'T trigger: "what is python", "who invented the telephone"
-
-2. **Natural AI Behavior**:
-   - Removed aggressive prompt modifications that confused the model
-   - Let Deepseek decide when to use tools naturally
-   - Lower temperature (0.3) for factual queries reduces hallucinations
-   - Removed intrusive fallback web search mechanism
-
-3. **Accurate Model Information**:
-   - Bot now shows actual model name: "deepseek-r1-0528 (via Lambda Labs)"
-   - Proper detection between original R1 and R1-0528 variants
-   - Clear indication of which provider is being used
-
-4. **Better Debug Logging**:
-   - Enhanced Lambda Labs-specific request/response logging
-   - Easier to troubleshoot issues with detailed debug output
-   - Tracks temperature adjustments and tool usage decisions
-
-### Lambda Labs Integration (2025-01-07)
-Successfully integrated Lambda Labs API to run Deepseek-R1-0528:
-
-1. **Configuration**:
-   - Uses OpenAI-compatible endpoint: `https://api.lambda.ai/v1`
-   - Environment variables: `LAMBDA_API_KEY`, `LAMBDA_MODEL`, `LAMBDA_MAX_TOKENS`, `LAMBDA_TEMPERATURE`
-   - Takes priority over OpenAI if configured
-
-2. **Web Search Support**:
-   - Deepseek-R1-0528 has FULL function calling support
-   - Automatic web search for factual queries
-   - Enhanced pattern detection for sports, news, time-sensitive queries
-
-3. **Important Notes**:
-   - Ensure Railway environment variables are properly set
-   - Bot will show exact model name in `/pup status`
-   - Web search works for: sports scores, current events, weather, stock prices
-   - Google API credentials still required for web search functionality
-
----
-
-## 📝 Session Summary: Complete Lambda Labs/Deepseek Integration Overhaul (2025-01-13)
-
-### Overview
-Major debugging and fixes for Lambda Labs/Deepseek integration issues including response processing, API error handling, web search functionality, and sports hallucinations.
-
-### Issues Fixed
-
-1. **Deepseek Thinking Tags Appearing in Slack**
-   - **Problem**: `<think>` and `<thinking>` tags from Deepseek's internal reasoning were visible to users
-   - **Solution**: Added `processDeepseekResponse()` method to strip all thinking tags before sending to Slack
-   - **Location**: `src/services/ai/providers/openai.ts:31-55`
-
-2. **Critical Production Crash: "Cannot read properties of undefined"**
-   - **Problem**: Lambda Labs API sometimes returns invalid response structures
-   - **Solution**: Added defensive checks before accessing `completion.choices[0]`
-   - **Key Changes**:
-     - Check for error objects: `if (completion && (completion as any).object === 'error')`
-     - Validate response structure: `if (!completion || !completion.choices || completion.choices.length === 0)`
-     - Added similar checks for follow-up responses
-   - **Location**: `src/services/ai/providers/openai.ts:271-282, 363-367`
-
-3. **Lambda Labs tool_choice Parameter Errors**
-   - **Problem**: Lambda Labs doesn't support OpenAI's `tool_choice` parameter
-   - **Solution**: Never set `tool_choice` for Lambda Labs, use system messages instead
-   - **Implementation**:
-     - Detect Lambda Labs via baseURL check
-     - Add system message to encourage tool use instead of forcing it
-     - Retry logic if tool_choice error occurs
-   - **Location**: `src/services/ai/providers/openai.ts:223-244, 431-479`
-
-4. **NBA Finals Hallucination (Celtics vs Mavericks)**
-   - **Problem**: Bot was making up teams instead of using web search results
-   - **Root Cause**: Web search patterns weren't catching queries like "When's the next nba finals game"
-   - **Solutions**:
-     - Expanded web search patterns to catch all NBA Finals queries
-     - Added explicit instructions to use ONLY search results
-     - Enhanced search result logging for debugging
-   - **Key Patterns Added**:
-     - `/\bnba\s+finals/i` - ANY mention of NBA Finals
-     - `/\bwhen('?s|\s+is|\s+are).*\b(nba|nfl|mlb|nhl|game|match|finals|playoff)/i`
-     - `/\b(is there|are there|any).*\b(game|match|finals|playoff).*\b(tonight|today)/i`
-   - **Location**: `src/services/ai/providers/openai.ts:57-120`
-
-### Technical Implementation Details
-
-1. **Response Processing Pipeline**:
-   ```typescript
-   // Process all Deepseek responses
-   if (isDeepseek && responseContent) {
-     responseContent = this.processDeepseekResponse(responseContent);
-   }
-   ```
-
-2. **Enhanced Logging**:
-   - 🎯 Web search detection
-   - 🤖 Lambda Labs request/response
-   - 🧹 Deepseek response processing
-   - 📤 Final output to Slack
-   - 🔍 Web search execution
-
-3. **Model Detection**:
-   - Proper display of actual model name in `/pup status`
-   - Shows "deepseek-r1-0528 (via Lambda Labs)" for clarity
-   - Distinguishes between original R1 and R1-0528 variants
-
-### Configuration Notes
-
-- Lambda Labs uses OpenAI-compatible endpoint: `https://api.lambda.ai/v1`
-- Deepseek-R1-0528 DOES support function calling (unlike original R1)
-- Web search works automatically for factual queries
-- Temperature lowered to 0.3 for factual queries to reduce hallucinations
-
-### Testing & Verification
-
-- Tested NBA Finals queries - now correctly reports Pacers vs Thunder
-- Verified thinking tags no longer appear in Slack
-- Confirmed no more crashes from invalid API responses
-- Web search properly triggers for all sports/time-sensitive queries
-
-### Future Considerations
-
-- Consider adding more robust API response validation
-- May want to implement streaming responses for better UX
-- Could add user preference for web search sensitivity
-- Plugin system would benefit from these error handling patterns
 
 ---
 
@@ -867,6 +706,17 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 - No more fake "Web search requires Google API" messages
 - Cleaner, simpler architecture
 
+### Update: Removed Lambda Labs Integration (2025-06-09 pt3)
+
+**Issue**: Lambda Labs (Deepseek) was causing tool_choice errors and couldn't do web search for sports queries.
+
+**Solution**: 
+- Removed all Lambda Labs configuration and code
+- Removed Deepseek-specific response processing
+- Gemini 2.0 is now the primary recommendation for sports/news queries
+- Cleaner codebase without Lambda Labs error handling
+- No more fallback failures or retry logic
+
 **Last Updated**: 2025-06-09  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Removed bot-side web search - models handle search internally based on their capabilities
+**Session**: Removed Lambda Labs entirely - Gemini 2.0 is the recommended provider
