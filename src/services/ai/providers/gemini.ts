@@ -57,14 +57,25 @@ export class GeminiProvider extends BaseAIProvider {
       
       // Tools for grounding (web search)
       const tools: Tool[] = [{
-        googleSearchRetrieval: {}
+        googleSearchRetrieval: {
+          dynamicRetrievalConfig: {
+            mode: 'MODE_DYNAMIC',
+            dynamicThreshold: 0.0  // Always use grounding when possible
+          }
+        }
       }];
       
       this.model = this.genAI.getGenerativeModel({ 
         model: modelName,
         safetySettings,
         generationConfig,
-        tools
+        tools,
+        toolConfig: {
+          functionCallingConfig: {
+            mode: 'ANY',  // Allow any function calls
+            allowedFunctionNames: ['googleSearchRetrieval']
+          }
+        }
       });
     } else {
       console.log(`[Gemini] Initializing ${modelName} without grounding`);
