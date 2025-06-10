@@ -835,8 +835,35 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 - `src/app.ts`: Conditional web search based on Gemini model version
 - `src/utils/webSearch.ts`: Enhanced query modification for sports scores
 
+### Update: Removed Hardcoded Sports Data & Improved Search (2025-01-15)
+
+**Issue**: System prompts were hardcoding specific team matchups (e.g., "Pacers vs Thunder") which is unethical and not scalable.
+
+**Solution Implemented**:
+1. **Generic Score Extraction**: 
+   - Removed all hardcoded team names and matchups
+   - System prompts now work for any sport/season/teams
+   - Instructions focus on extracting score patterns (e.g., "123-107")
+
+2. **Enhanced Web Search**:
+   - Adds "box score" to NBA/NFL/MLB/NHL queries for detailed results
+   - Adds "final score result recap" to game queries
+   - ESPN fallback search if initial results lack scores
+   - Detects score patterns in search results
+
+3. **Better Error Handling**:
+   - If search mentions a game but no score found, bot acknowledges this
+   - No more false "no game happened" responses
+   - Clear instructions to report what information IS available
+
+**Key Changes**:
+- Removed hardcoded "Pacers vs Thunder" references
+- Generic instructions that adapt to any sports query
+- ESPN site-specific search as fallback
+- Enhanced logging shows which results contain score patterns
+
 ---
 
 **Last Updated**: 2025-01-15  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Gemini 2.5 Support & Web Search Score Extraction - Fixed grounding detection, enhanced web search for sports scores, improved system prompts
+**Session**: Ethical Sports Search Fix - Removed hardcoded data, made search generic and scalable, added ESPN fallback
