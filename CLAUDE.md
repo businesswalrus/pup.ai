@@ -751,6 +751,73 @@ GOOGLE_GENAI_MODEL=gemini-2.0-flash-exp  # Optional, this is default
 
 ---
 
-**Last Updated**: 2025-01-14  
+## 🔧 Session Update: Gemini Grounding Fixes for Sports Queries (2025-01-15)
+
+### Overview
+Critical fixes to ensure Google Gemini properly uses grounding for sports queries and stops hallucinating old NBA Finals results.
+
+### Issues Fixed
+
+1. **Gemini Model Detection**
+   - **Problem**: Grounding only enabled for models containing "flash-2" or "2.0-flash", missing "gemini-2.5-flash-preview"
+   - **Solution**: Changed detection to include ALL flash models
+   - **Location**: `src/services/ai/providers/gemini.ts:52`
+
+2. **Forced Grounding Configuration**
+   - **Problem**: Gemini wasn't consistently using grounding even when detected as needed
+   - **Solutions**:
+     - Set `dynamicThreshold: 0.0` to always use grounding when possible
+     - Added `toolConfig` with `functionCallingConfig` to allow googleSearchRetrieval
+     - Added explicit system instruction when grounding is needed
+   - **Location**: `src/services/ai/providers/gemini.ts:59-78`
+
+3. **Enhanced Grounding Detection**
+   - Added more comprehensive patterns including:
+     - Team names (pacers, thunder, celtics, etc.)
+     - Score-specific queries ("actual score", "final score")
+     - Context continuation patterns ("okay", "what about")
+   - **Location**: `src/services/ai/providers/gemini.ts:177-210`
+
+4. **System Prompt Updates**
+   - **Walrus Personality**: Added explicit "SPORTS QUERIES REQUIRE GROUNDING" instruction
+   - **Gemini-Specific**: Added detailed instructions about using googleSearchRetrieval tool
+   - Specifically mentions Celtics vs Mavericks was 2024, current is Pacers vs Thunder
+   - **Location**: `src/app.ts:615-622, 711-718`
+
+5. **Manual Web Search Disabled for Gemini**
+   - Prevents double search (manual + grounding)
+   - Gemini relies solely on its native grounding
+   - **Location**: `src/app.ts:131-149, 404-422`
+
+### Technical Details
+
+1. **Grounding Metadata Logging**:
+   ```typescript
+   if (response.candidates?.[0]?.groundingMetadata) {
+     console.log('[Gemini] Grounding details:', {
+       attributions: response.candidates[0].groundingMetadata.groundingAttributions?.length || 0,
+       queries: response.candidates[0].groundingMetadata.searchQueries || []
+     });
+   } else if (needsGrounding) {
+     console.error('[Gemini] WARNING: Grounding was needed but not used!');
+   }
+   ```
+
+2. **Explicit Grounding Instructions**:
+   ```typescript
+   if (needsGrounding) {
+     finalPrompt = `${prompt}\n\n[SYSTEM: This is a factual query. You MUST use grounding/web search to get accurate, current information. Do NOT make up or guess any information, especially sports scores.]`;
+   }
+   ```
+
+### Testing Notes
+- Monitor logs for "WARNING: Grounding was needed but not used!"
+- Check for `hasGroundingMetadata: true` in response logs
+- Verify sports queries return current, accurate information
+- Test with queries like "what was the score" and "who won last night"
+
+---
+
+**Last Updated**: 2025-01-15  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Google Gemini Integration & Critical Fixes - Added Gemini Flash 2.0 with grounding, fixed memory leak, dynamic bot ID, enhanced web search
+**Session**: Gemini Grounding Fixes - Fixed model detection, forced grounding usage, enhanced patterns, disabled double search
