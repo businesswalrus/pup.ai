@@ -54,7 +54,20 @@ export class AIService {
   }
 
   private initializeProviders(): void {
-    // Initialize OpenAI provider if configured
+    // Initialize Gemini FIRST (preferred for grounding)
+    if (this.config.providers.gemini) {
+      try {
+        const gemini = new GeminiProvider(this.config.providers.gemini);
+        if (gemini.isAvailable()) {
+          this.providers.set('gemini', gemini);
+          console.log('✅ Gemini AI provider initialized with model:', gemini.getModel());
+        }
+      } catch (error) {
+        console.error('Failed to initialize Gemini provider:', error);
+      }
+    }
+    
+    // Initialize OpenAI/Lambda Labs second
     if (this.config.providers.openai) {
       try {
         const openai = new OpenAIProvider(this.config.providers.openai);
@@ -66,7 +79,7 @@ export class AIService {
       }
     }
     
-    // Initialize Anthropic provider if configured
+    // Initialize Anthropic last
     if (this.config.providers.anthropic) {
       try {
         const anthropic = new AnthropicProvider(this.config.providers.anthropic);
@@ -75,19 +88,6 @@ export class AIService {
         }
       } catch (error) {
         console.error('Failed to initialize Anthropic provider:', error);
-      }
-    }
-    
-    // Initialize Gemini provider if configured
-    if (this.config.providers.gemini) {
-      try {
-        const gemini = new GeminiProvider(this.config.providers.gemini);
-        if (gemini.isAvailable()) {
-          this.providers.set('gemini', gemini);
-          console.log('✅ Gemini AI provider initialized with model:', gemini.getModel());
-        }
-      } catch (error) {
-        console.error('Failed to initialize Gemini provider:', error);
       }
     }
   }

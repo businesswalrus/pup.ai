@@ -462,9 +462,11 @@ export class PupAI {
           temperature: process.env.LAMBDA_TEMPERATURE ? parseFloat(process.env.LAMBDA_TEMPERATURE) : 0.7,
           baseURL: 'https://api.lambda.ai/v1'
         };
-        // Only use Lambda/OpenAI as default if Gemini isn't configured
+        // NEVER use Lambda as default for sports queries - it can't do web search
+        // Only use it if Gemini isn't available AND user explicitly switches
         if (!process.env.GOOGLE_GENAI_API_KEY) {
           aiConfig.defaultProvider = 'openai';
+          console.log('⚠️ Lambda Labs set as default - no web search for sports queries!');
         }
       }
       // Check for OpenAI configuration

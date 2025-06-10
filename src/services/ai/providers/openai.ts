@@ -217,29 +217,23 @@ export class OpenAIProvider extends BaseAIProvider {
       
       // Only add tools if needed and supported
       if (needsWebSearch && supportsTools) {
-        completionParams.tools = tools;
-        
-        // For Lambda Labs/Deepseek, we need to be more explicit about tool usage
+        // Lambda Labs has issues with tools - skip entirely
         if (this.config.baseURL?.includes('lambda.ai')) {
-          // Lambda Labs doesn't support tool_choice at all, not even "auto"
-          // Just add a system message to strongly encourage tool use
+          // Don't add tools for Lambda Labs - it causes errors
           const systemMessage = {
             role: 'system' as const,
-            content: `CRITICAL: This query requires current information. You MUST:
-1. Use the web_search function FIRST
-2. Base your response ONLY on the search results
+            content: `This query requires current information. Since you cannot search directly, please:
+1. Be honest that you don't have real-time access
+2. Direct the user to check ESPN, news sites, or official sources
 3. DO NOT make up teams, scores, dates, or any information
-4. If search results mention specific teams (like Pacers vs Thunder), use THOSE teams
-5. NEVER use outdated information like "Celtics vs Mavericks" if that's not in the search results
-The user expects accurate, real-time information.`
+4. If asked about current sports/news/weather, say "I don't have real-time access. Check [appropriate website]"`
           };
-          console.log('🔧 Adding system message to encourage web search for Lambda Labs');
-          console.log('📋 Messages before splice:', messages.length, 'messages');
+          console.log('🔧 Lambda Labs cannot use tools - adding fallback message');
           messages.splice(messages.length - 1, 0, systemMessage);
-          console.log('📋 Messages after splice:', messages.length, 'messages');
-          // Do NOT set tool_choice for Lambda Labs
+          // Don't add tools or tool_choice for Lambda
         } else {
-          // For OpenAI, we can use tool_choice
+          // For OpenAI, we can use tools normally
+          completionParams.tools = tools;
           completionParams.tool_choice = { type: 'function' as const, function: { name: 'web_search' } };
         }
       }
