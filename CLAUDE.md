@@ -382,10 +382,6 @@ The current default personality ('walrus') features:
 AI_PERSONALITY=walrus  # Default: opinionated assistant with attitude
 AI_USE_EMOJIS=true     # Emoji usage (walrus personality forces this to true)
 AI_MAX_RESPONSE_LENGTH=200  # Target response length in words
-
-# Web Search (optional - for real-time information lookup)
-GOOGLE_API_KEY=your-google-api-key
-GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 ```
 
 **Available Personalities**:
@@ -403,29 +399,11 @@ GOOGLE_SEARCH_ENGINE_ID=your-search-engine-id
 - Custom personalities can be added by modifying the `createSystemPrompt()` method in `app.ts`
 
 **Web Search Feature**:
-- **Primary**: Gemini Flash 2.0 with native grounding (automatic, no configuration needed!)
-- **Secondary**: Manual web search via WebSearchService for other providers
-- Available with:
-  - Gemini Flash 2.0 (native grounding - BEST option)
-  - OpenAI provider and Deepseek-R1-0528 via Lambda Labs
-  - NOT available with o1 models or original Deepseek-R1
-- Automatically triggered for factual queries (sports scores, recent events, news, facts)
-- REQUIRED for queries matching factual patterns - prevents hallucination
-- Can search for real-time information on any topic
-- Falls back to direct web URLs if Google API not configured
-- Integrated into AI responses automatically when needed
-- Enhanced with:
-  - Date filtering (last 30 days only)
-  - Automatic date context injection for current events
-  - Results sorted by date (most recent first)
-  - Current year/month added to time-sensitive queries
-- Pattern detection includes:
-  - Sports queries (scores, games, results)
-  - Time-sensitive info (today, yesterday, recent, latest)
-  - Factual questions (what, who, when, where)
-  - News and current events
-  - Prices, weather, stock info
-  - Political events and figures
+- **Gemini 2.0 Flash**: Has native grounding (automatic, no configuration needed!)
+- **Gemini 2.5 Flash Preview**: No grounding support - directs users to check websites
+- **Other providers**: No web search - bot removed manual search functionality
+- Models handle search according to their capabilities
+- No external search APIs needed anymore
 
 ### 🎮 Available Commands
 
@@ -876,6 +854,19 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 
 **Note on Dates**: When reading this file, be aware that dates in the updates section reflect when changes were actually made. The system dynamically provides the current date, so always verify against the actual date provided in your context.
 
+### Update: Removed Bot-Side Web Search (2025-06-09 pt2)
+
+**Issue**: Manual web search via Google API was broken and causing confusing responses.
+
+**Solution**: 
+- Removed all WebSearchService code from bot
+- Let each AI model handle search according to its capabilities:
+  - Gemini 2.0: Uses built-in grounding for real-time info
+  - Gemini 2.5: No grounding - tells users to check websites
+  - Other models: Direct users to official sources
+- No more fake "Web search requires Google API" messages
+- Cleaner, simpler architecture
+
 **Last Updated**: 2025-06-09  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Ethical Sports Search Fix - Removed hardcoded data, made search generic and scalable, added ESPN fallback, fixed Gemini 2.5 grounding detection
+**Session**: Removed bot-side web search - models handle search internally based on their capabilities
