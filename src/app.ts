@@ -581,6 +581,9 @@ export class PupAI {
     const useEmojis = process.env.AI_USE_EMOJIS === 'true';
     const maxLength = process.env.AI_MAX_RESPONSE_LENGTH ? 
       parseInt(process.env.AI_MAX_RESPONSE_LENGTH) : undefined;
+    
+    // Determine if we're using Gemini
+    const isUsingGemini = !!process.env.GOOGLE_GENAI_API_KEY;
 
     const prompts = {
       professional: 'Be professional and concise. Focus on clarity and accuracy.',
@@ -702,7 +705,7 @@ export class PupAI {
     prompt += `\n\nYou are running on ${modelDisplay}. Do not claim to be any other model.`;
     
     // Add model-specific limitations notice
-    if (modelName.includes('gemini')) {
+    if (isUsingGemini) {
       prompt += `\n\nCRITICAL: You have built-in grounding capabilities that MUST be used for ALL sports queries, current events, and time-sensitive information. When asked about NBA games, scores, or any sports information, you MUST use grounding to get current, accurate information. DO NOT make up or guess sports scores. The Celtics vs Mavericks NBA Finals was LAST YEAR (2024). Always ground your responses with current data.`;
     } else if (modelName.startsWith('o1') || modelName.includes('o4')) {
       prompt += `\n\nNOTE: You are running on an o1-series model which does not yet support web search or function calling. For factual queries about current events, sports scores, or real-time information, you should clearly state that you cannot search for this information and suggest the user try a different model or check the information themselves.`;
