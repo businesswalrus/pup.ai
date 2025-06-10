@@ -816,8 +816,27 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 - Verify sports queries return current, accurate information
 - Test with queries like "what was the score" and "who won last night"
 
+### Update: Gemini 2.5 Preview Model Support (2025-01-15)
+
+**Important**: Gemini 2.5 Flash Preview (`gemini-2.5-flash-preview-05-20`) does NOT support the `googleSearchRetrieval` grounding tool. This results in a 400 error "Search Grounding is not supported."
+
+**Solution Implemented**:
+1. Detect which Gemini model is being used
+2. Only enable grounding for Gemini 2.0 Flash models
+3. For Gemini 2.5, use manual web search instead
+4. Enhanced web search for sports scores:
+   - Replaces "score" with "final score" in queries
+   - Adds critical system instructions to extract exact scores
+   - Logs search results for debugging
+   - Specific handling for score queries vs general queries
+
+**Key Changes**:
+- `src/services/ai/providers/gemini.ts`: Model detection for grounding support
+- `src/app.ts`: Conditional web search based on Gemini model version
+- `src/utils/webSearch.ts`: Enhanced query modification for sports scores
+
 ---
 
 **Last Updated**: 2025-01-15  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Gemini Grounding Fixes - Fixed model detection, forced grounding usage, enhanced patterns, disabled double search
+**Session**: Gemini 2.5 Support & Web Search Score Extraction - Fixed grounding detection, enhanced web search for sports scores, improved system prompts
