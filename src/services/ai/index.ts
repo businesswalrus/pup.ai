@@ -206,6 +206,10 @@ export class AIService {
     return this.activeProvider?.name || null;
   }
 
+  getActiveModel(): string | null {
+    return this.activeProvider?.getModel() || null;
+  }
+
   getAvailableProviders(): string[] {
     return Array.from(this.providers.keys());
   }

@@ -128,10 +128,12 @@ export class PupAI {
               let enhancedPrompt = cleanText;
               let searchContext = '';
               
-              // Skip manual web search if using Gemini (it has built-in grounding)
+              // Skip manual web search if using Gemini 2.0 with grounding (not 2.5 which doesn't support it)
               const isUsingGemini = this.aiService && this.aiService.getActiveProvider() === 'gemini';
+              const activeModel = this.aiService?.getActiveModel() || '';
+              const geminiHasGrounding = isUsingGemini && (activeModel.includes('2.0-flash') || activeModel === 'gemini-2.0-flash-exp');
               
-              if (!isUsingGemini && this.webSearchService.shouldSearch(cleanText)) {
+              if ((!isUsingGemini || !geminiHasGrounding) && this.webSearchService.shouldSearch(cleanText)) {
                 console.log('🔍 Web search triggered for query:', cleanText);
                 const searchResults = await this.webSearchService.search(cleanText);
                 
@@ -144,8 +146,10 @@ export class PupAI {
                   enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
                   console.log('🔍 Added web search context to prompt');
                 }
-              } else if (isUsingGemini && this.webSearchService.shouldSearch(cleanText)) {
-                console.log('🔍 Skipping manual web search - Gemini has built-in grounding');
+              } else if (geminiHasGrounding && this.webSearchService.shouldSearch(cleanText)) {
+                console.log('🔍 Skipping manual web search - Gemini 2.0 has built-in grounding');
+              } else if (isUsingGemini && !geminiHasGrounding && this.webSearchService.shouldSearch(cleanText)) {
+                console.log('🔍 Gemini 2.5 does not support grounding - using manual web search');
               }
               
               const aiResponse = await this.aiService.generateResponse(
@@ -401,10 +405,12 @@ export class PupAI {
             let enhancedPrompt = text;
             let searchContext = '';
             
-            // Skip manual web search if using Gemini (it has built-in grounding)
+            // Skip manual web search if using Gemini 2.0 with grounding (not 2.5 which doesn't support it)
             const isUsingGemini = this.aiService && this.aiService.getActiveProvider() === 'gemini';
+            const activeModel = this.aiService?.getActiveModel() || '';
+            const geminiHasGrounding = isUsingGemini && (activeModel.includes('2.0-flash') || activeModel === 'gemini-2.0-flash-exp');
             
-            if (!isUsingGemini && this.webSearchService.shouldSearch(text)) {
+            if ((!isUsingGemini || !geminiHasGrounding) && this.webSearchService.shouldSearch(text)) {
               console.log('🔍 Web search triggered for app mention:', text);
               const searchResults = await this.webSearchService.search(text);
               
@@ -417,8 +423,10 @@ export class PupAI {
                 enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
                 console.log('🔍 Added web search context to app mention');
               }
-            } else if (isUsingGemini && this.webSearchService.shouldSearch(text)) {
-              console.log('🔍 Skipping manual web search - Gemini has built-in grounding');
+            } else if (geminiHasGrounding && this.webSearchService.shouldSearch(text)) {
+              console.log('🔍 Skipping manual web search - Gemini 2.0 has built-in grounding');
+            } else if (isUsingGemini && !geminiHasGrounding && this.webSearchService.shouldSearch(text)) {
+              console.log('🔍 Gemini 2.5 does not support grounding - using manual web search');
             }
             
             const aiResponse = await this.aiService.generateResponse(

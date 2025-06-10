@@ -14,6 +14,7 @@ export class GeminiProvider extends BaseAIProvider {
   public name = 'gemini';
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
+  private supportsGrounding: boolean = false;
   
   constructor(config: AIProviderConfig) {
     super(config);
@@ -47,12 +48,12 @@ export class GeminiProvider extends BaseAIProvider {
       topK: 40,
     };
     
-    // Create model with grounding if using Flash model (2.0 or higher)
+    // Create model with grounding if using Flash 2.0 model (not 2.5 preview which doesn't support it)
     const modelName = config.model || 'gemini-2.0-flash-exp';
-    const isFlash2 = modelName.includes('flash');
+    this.supportsGrounding = modelName.includes('2.0-flash') || modelName === 'gemini-2.0-flash-exp';
     
     // Configure model with or without grounding based on model type
-    if (isFlash2) {
+    if (this.supportsGrounding) {
       console.log(`[Gemini] Initializing ${modelName} with grounding capabilities`);
       
       // Tools for grounding (web search)
@@ -80,9 +81,9 @@ export class GeminiProvider extends BaseAIProvider {
     try {
       console.log(`[Gemini] Generating response with model: ${this.config.model || 'gemini-2.0-flash-exp'}`);
       
-      // Check if web search/grounding is needed
-      const needsGrounding = this.shouldUseGrounding(prompt);
-      console.log(`[Gemini] Grounding needed: ${needsGrounding}`);
+      // Check if web search/grounding is needed AND supported
+      const needsGrounding = this.supportsGrounding && this.shouldUseGrounding(prompt);
+      console.log(`[Gemini] Grounding needed: ${needsGrounding}, supported: ${this.supportsGrounding}`);
       
       // Build conversation history in Gemini format
       const history = this.buildGeminiHistory(context);
