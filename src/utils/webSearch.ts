@@ -87,6 +87,9 @@ export class WebSearchService {
       
       // Enhance query with temporal context
       const enhancedQuery = this.enhanceQuery(query);
+      if (enhancedQuery !== query) {
+        console.log(`[WebSearch] Enhanced query: ${enhancedQuery}`);
+      }
       
       // Try search providers in order of preference
       let results: WebSearchResult[] = [];
@@ -129,13 +132,19 @@ export class WebSearchService {
     const month = now.toLocaleString('default', { month: 'long' });
     const day = now.getDate();
     
+    // Special handling for sports scores - add "final score" to get better results
+    if (/\b(score|scores|game|match|finals|playoff)\b/i.test(query) && !/\bfinal score\b/i.test(query)) {
+      query = query.replace(/\bscore\b/i, 'final score');
+      query = query.replace(/\bscores\b/i, 'final scores');
+    }
+    
     // Add current date context for very time-sensitive queries
     if (/\b(today|tonight|right now)\b/i.test(query) && !query.includes(year.toString())) {
       return `${query} ${month} ${day} ${year}`;
     }
     
     // Add year for recent queries
-    if (/\b(latest|recent|current|this week|yesterday)\b/i.test(query) && !query.includes(year.toString())) {
+    if (/\b(latest|recent|current|this week|yesterday|last night)\b/i.test(query) && !query.includes(year.toString())) {
       return `${query} ${year}`;
     }
     

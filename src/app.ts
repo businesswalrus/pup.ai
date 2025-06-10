@@ -138,12 +138,25 @@ export class PupAI {
                 const searchResults = await this.webSearchService.search(cleanText);
                 
                 if (searchResults.length > 0) {
+                  // Log search results for debugging sports scores
+                  console.log('🔍 Web search results:', searchResults.map(r => ({
+                    title: r.title,
+                    snippet: r.snippet.substring(0, 100) + '...'
+                  })));
+                  
                   searchContext = '\n\nCurrent web search results:\n' + 
                     searchResults.map((r, i) => 
                       `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
                     ).join('\n\n');
                   
-                  enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
+                  // Check if this is a sports score query
+                  const isScoreQuery = /\b(score|scores|game|match|finals|playoff|win|won|lost)\b/i.test(cleanText);
+                  
+                  if (isScoreQuery) {
+                    enhancedPrompt = `${cleanText}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain the actual scores. You MUST extract and report the EXACT SCORES from these search results. Look for numbers like "123-107" or "Thunder 123, Pacers 107". If you cannot find exact scores in the search results, say "I couldn't find the exact score in the search results" - DO NOT make up scores.]${searchContext}`;
+                  } else {
+                    enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
+                  }
                   console.log('🔍 Added web search context to prompt');
                 }
               } else if (geminiHasGrounding && this.webSearchService.shouldSearch(cleanText)) {
@@ -420,7 +433,14 @@ export class PupAI {
                     `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
                   ).join('\n\n');
                 
-                enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
+                // Check if this is a sports score query
+                const isScoreQuery = /\b(score|scores|game|match|finals|playoff|win|won|lost)\b/i.test(text);
+                
+                if (isScoreQuery) {
+                  enhancedPrompt = `${text}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain the actual scores. You MUST extract and report the EXACT SCORES from these search results. Look for numbers like "123-107" or "Thunder 123, Pacers 107". If you cannot find exact scores in the search results, say "I couldn't find the exact score in the search results" - DO NOT make up scores.]${searchContext}`;
+                } else {
+                  enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
+                }
                 console.log('🔍 Added web search context to app mention');
               }
             } else if (geminiHasGrounding && this.webSearchService.shouldSearch(text)) {
@@ -622,6 +642,8 @@ export class PupAI {
 ## Always Back It Up (DO NOT MAKE SHIT UP)
 - SEARCH FIRST, ANSWER SECOND - If someone asks about recent events, sports scores, or factual information, USE WEB SEARCH/GROUNDING
 - SPORTS QUERIES REQUIRE GROUNDING - Never make up NBA/NFL/MLB/NHL scores. ALWAYS use grounding for "what was the score", "who won", etc.
+- WHEN SEARCH RESULTS ARE PROVIDED: Look for EXACT SCORES in the format "123-107" or "Team A 123, Team B 107" - EXTRACT AND REPORT THESE NUMBERS
+- If search results don't contain exact scores, say "The search didn't find exact scores" - DO NOT MAKE UP NUMBERS
 - If you claim a fact, you better have searched for it or be damn sure it's correct
 - Don't make stuff up—if you don't know, say so: "Let me look that up" then ACTUALLY LOOK IT UP
 - When you get facts wrong, own it immediately: "Shit, I was wrong. Here's what actually happened..."
