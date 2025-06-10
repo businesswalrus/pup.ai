@@ -2,6 +2,14 @@
 
 > This is a living document for AI agents working on pup.ai. It contains all context, requirements, and guidelines needed for autonomous development.
 
+## ⚠️ Important Note on Dates
+
+This document contains historical entries from various dates. When reading:
+- Check the date in your system context for the current date
+- Historical entries (e.g., from January 2025) represent actual past work
+- Recent updates should match your current date
+- The system dynamically provides today's date in prompts
+
 ## 🎯 Project Overview
 
 **Project**: pup.ai - Intelligent Slack Bot  
@@ -751,7 +759,9 @@ GOOGLE_GENAI_MODEL=gemini-2.0-flash-exp  # Optional, this is default
 
 ---
 
-## 🔧 Session Update: Gemini Grounding Fixes for Sports Queries (2025-01-15)
+## 🔧 Session Update: Gemini Grounding Fixes for Sports Queries (Originally 2025-01-15, Updated 2025-06-09)
+
+**Note**: This section was originally created in January 2025 but has been updated with fixes on June 9, 2025.
 
 ### Overview
 Critical fixes to ensure Google Gemini properly uses grounding for sports queries and stops hallucinating old NBA Finals results.
@@ -816,7 +826,7 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 - Verify sports queries return current, accurate information
 - Test with queries like "what was the score" and "who won last night"
 
-### Update: Gemini 2.5 Preview Model Support (2025-01-15)
+### Update: Gemini 2.5 Preview Model Support (2025-06-09)
 
 **Important**: Gemini 2.5 Flash Preview (`gemini-2.5-flash-preview-05-20`) does NOT support the `googleSearchRetrieval` grounding tool. This results in a 400 error "Search Grounding is not supported."
 
@@ -835,7 +845,7 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 - `src/app.ts`: Conditional web search based on Gemini model version
 - `src/utils/webSearch.ts`: Enhanced query modification for sports scores
 
-### Update: Removed Hardcoded Sports Data & Improved Search (2025-01-15)
+### Update: Removed Hardcoded Sports Data & Improved Search (2025-06-09)
 
 **Issue**: System prompts were hardcoding specific team matchups (e.g., "Pacers vs Thunder") which is unethical and not scalable.
 
@@ -864,6 +874,8 @@ Critical fixes to ensure Google Gemini properly uses grounding for sports querie
 
 ---
 
-**Last Updated**: 2025-01-15  
+**Note on Dates**: When reading this file, be aware that dates in the updates section reflect when changes were actually made. The system dynamically provides the current date, so always verify against the actual date provided in your context.
+
+**Last Updated**: 2025-06-09  
 **Updated By**: Claude (pup.ai agent)  
-**Session**: Ethical Sports Search Fix - Removed hardcoded data, made search generic and scalable, added ESPN fallback
+**Session**: Ethical Sports Search Fix - Removed hardcoded data, made search generic and scalable, added ESPN fallback, fixed Gemini 2.5 grounding detection
