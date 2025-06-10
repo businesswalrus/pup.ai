@@ -57,25 +57,14 @@ export class GeminiProvider extends BaseAIProvider {
       
       // Tools for grounding (web search)
       const tools: Tool[] = [{
-        googleSearchRetrieval: {
-          dynamicRetrievalConfig: {
-            mode: 'MODE_DYNAMIC',
-            dynamicThreshold: 0.0  // Always use grounding when possible
-          }
-        }
+        googleSearchRetrieval: {}
       }];
       
       this.model = this.genAI.getGenerativeModel({ 
         model: modelName,
         safetySettings,
         generationConfig,
-        tools,
-        toolConfig: {
-          functionCallingConfig: {
-            mode: 'ANY',  // Allow any function calls
-            allowedFunctionNames: ['googleSearchRetrieval']
-          }
-        }
+        tools
       });
     } else {
       console.log(`[Gemini] Initializing ${modelName} without grounding`);
@@ -124,8 +113,7 @@ export class GeminiProvider extends BaseAIProvider {
           hasContent: !!response.candidates?.[0]?.content,
           finishReason: response.candidates?.[0]?.finishReason,
           safetyRatings: response.candidates?.[0]?.safetyRatings?.length || 0,
-          hasGroundingMetadata: !!response.candidates?.[0]?.groundingMetadata,
-          groundingAttributions: response.candidates?.[0]?.groundingMetadata?.groundingAttributions?.length || 0
+          hasGroundingMetadata: !!response.candidates?.[0]?.groundingMetadata
         } : 'no candidates'
       }, null, 2));
       
