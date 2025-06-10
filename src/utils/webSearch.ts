@@ -115,6 +115,37 @@ export class WebSearchService {
       }
       
       console.log(`[WebSearch] Found ${results.length} results`);
+      
+      // If this is a sports score query and we didn't find actual scores, try a more specific search
+      const isScoreQuery = /\b(score|scores|game|match|finals|playoff)\b/i.test(query);
+      if (isScoreQuery && results.length > 0) {
+        const hasScore = results.some(r => 
+          /\d{2,3}\s*[-–]\s*\d{2,3}|\d{2,3}\s*to\s*\d{2,3}|won\s+\d{2,3}.*\d{2,3}/i.test(r.snippet)
+        );
+        
+        if (hasScore) {
+          console.log('[WebSearch] Found score pattern in search results');
+        } else {
+          console.log('[WebSearch] No scores found in results, trying ESPN search...');
+          // Try a more specific search with ESPN
+          const espnQuery = enhancedQuery.replace(/box score/, '') + ' site:espn.com';
+          let espnResults: WebSearchResult[] = [];
+          
+          // Try with available search providers
+          if (this.braveApiKey) {
+            espnResults = await this.braveSearch(espnQuery, { numResults: 3 });
+          } else if (this.apiKey && this.searchEngineId) {
+            espnResults = await this.googleSearch(espnQuery, { numResults: 3 });
+          }
+          
+          if (espnResults.length > 0) {
+            // Prepend ESPN results
+            results = [...espnResults, ...results].slice(0, 5);
+            console.log('[WebSearch] Added ESPN results to search');
+          }
+        }
+      }
+      
       return results;
       
     } catch (error) {
@@ -134,19 +165,17 @@ export class WebSearchService {
     
     // Special handling for sports scores - add "final score" to get better results
     if (/\b(score|scores|game|match|finals|playoff)\b/i.test(query)) {
-      // For NBA Finals specifically, add specific search terms
-      if (/\bnba finals\b/i.test(query)) {
-        // If asking about "game 2", make it more specific
-        if (/\bgame\s+\d+\b/i.test(query) && !/\bfinal score\b/i.test(query)) {
-          query = query.replace(/\b(game\s+\d+)\b/i, '$1 final score result');
-        }
-        // Add "pacers thunder" to get current finals teams
-        if (!/\b(pacers|thunder)\b/i.test(query)) {
-          query = query.replace(/\bnba finals\b/i, 'NBA Finals Pacers Thunder');
-        }
-      } else if (!/\bfinal score\b/i.test(query)) {
+      // For any sports game query, enhance with specific terms
+      if (/\bgame\s+\d+\b/i.test(query) && !/\b(final score|result|recap)\b/i.test(query)) {
+        query = query.replace(/\b(game\s+\d+)\b/i, '$1 final score result recap');
+      } else if (!/\bfinal score\b/i.test(query) && /\bscore\b/i.test(query)) {
         query = query.replace(/\bscore\b/i, 'final score');
         query = query.replace(/\bscores\b/i, 'final scores');
+      }
+      
+      // Add "box score" for sports queries to get detailed results
+      if (/\b(nba|nfl|mlb|nhl)\b/i.test(query) && !/\bbox score\b/i.test(query)) {
+        query = query + ' box score';
       }
     }
     
