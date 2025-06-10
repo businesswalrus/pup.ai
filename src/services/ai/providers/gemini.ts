@@ -146,10 +146,8 @@ export class GeminiProvider extends BaseAIProvider {
       // Check if grounding was used
       if (response.candidates?.[0]?.groundingMetadata) {
         console.log('[Gemini] Response used grounding/web search');
-        console.log('[Gemini] Grounding details:', JSON.stringify({
-          attributions: response.candidates[0].groundingMetadata.groundingAttributions?.length || 0,
-          queries: response.candidates[0].groundingMetadata.webSearchQueries || []
-        }, null, 2));
+        // Log the full grounding metadata object for debugging
+        console.log('[Gemini] Grounding metadata:', JSON.stringify(response.candidates[0].groundingMetadata, null, 2));
       } else if (needsGrounding) {
         console.error('[Gemini] WARNING: Grounding was needed but not used!');
       }
