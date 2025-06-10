@@ -153,7 +153,12 @@ export class PupAI {
                   const isScoreQuery = /\b(score|scores|game|match|finals|playoff|win|won|lost)\b/i.test(cleanText);
                   
                   if (isScoreQuery) {
-                    enhancedPrompt = `${cleanText}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain the actual scores. You MUST extract and report the EXACT SCORES from these search results. Look for numbers like "123-107" or "Thunder 123, Pacers 107". If you cannot find exact scores in the search results, say "I couldn't find the exact score in the search results" - DO NOT make up scores.]${searchContext}`;
+                    // Special handling for NBA Finals context
+                    if (/\bnba finals\b/i.test(cleanText)) {
+                      enhancedPrompt = `${cleanText}\n\n[CRITICAL SYSTEM INSTRUCTION: The 2025 NBA Finals is between the Pacers and Thunder. The search results below should contain information about their games. Look for EXACT SCORES in formats like "123-107" or "Thunder 123, Pacers 107". If the search results mention Game 2 but don't have the exact score, say "I found references to Game 2 but the search didn't return the exact score." DO NOT make up scores or say there was no game if the search mentions one.]${searchContext}`;
+                    } else {
+                      enhancedPrompt = `${cleanText}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain the actual scores. You MUST extract and report the EXACT SCORES from these search results. Look for numbers like "123-107" or "Thunder 123, Pacers 107". If you cannot find exact scores in the search results, say "I couldn't find the exact score in the search results" - DO NOT make up scores.]${searchContext}`;
+                    }
                   } else {
                     enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
                   }
@@ -437,7 +442,12 @@ export class PupAI {
                 const isScoreQuery = /\b(score|scores|game|match|finals|playoff|win|won|lost)\b/i.test(text);
                 
                 if (isScoreQuery) {
-                  enhancedPrompt = `${text}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain the actual scores. You MUST extract and report the EXACT SCORES from these search results. Look for numbers like "123-107" or "Thunder 123, Pacers 107". If you cannot find exact scores in the search results, say "I couldn't find the exact score in the search results" - DO NOT make up scores.]${searchContext}`;
+                  // Special handling for NBA Finals context
+                  if (/\bnba finals\b/i.test(text)) {
+                    enhancedPrompt = `${text}\n\n[CRITICAL SYSTEM INSTRUCTION: The 2025 NBA Finals is between the Pacers and Thunder. The search results below should contain information about their games. Look for EXACT SCORES in formats like "123-107" or "Thunder 123, Pacers 107". If the search results mention Game 2 but don't have the exact score, say "I found references to Game 2 but the search didn't return the exact score." DO NOT make up scores or say there was no game if the search mentions one.]${searchContext}`;
+                  } else {
+                    enhancedPrompt = `${text}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain the actual scores. You MUST extract and report the EXACT SCORES from these search results. Look for numbers like "123-107" or "Thunder 123, Pacers 107". If you cannot find exact scores in the search results, say "I couldn't find the exact score in the search results" - DO NOT make up scores.]${searchContext}`;
+                  }
                 } else {
                   enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
                 }

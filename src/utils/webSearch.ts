@@ -133,9 +133,21 @@ export class WebSearchService {
     const day = now.getDate();
     
     // Special handling for sports scores - add "final score" to get better results
-    if (/\b(score|scores|game|match|finals|playoff)\b/i.test(query) && !/\bfinal score\b/i.test(query)) {
-      query = query.replace(/\bscore\b/i, 'final score');
-      query = query.replace(/\bscores\b/i, 'final scores');
+    if (/\b(score|scores|game|match|finals|playoff)\b/i.test(query)) {
+      // For NBA Finals specifically, add specific search terms
+      if (/\bnba finals\b/i.test(query)) {
+        // If asking about "game 2", make it more specific
+        if (/\bgame\s+\d+\b/i.test(query) && !/\bfinal score\b/i.test(query)) {
+          query = query.replace(/\b(game\s+\d+)\b/i, '$1 final score result');
+        }
+        // Add "pacers thunder" to get current finals teams
+        if (!/\b(pacers|thunder)\b/i.test(query)) {
+          query = query.replace(/\bnba finals\b/i, 'NBA Finals Pacers Thunder');
+        }
+      } else if (!/\bfinal score\b/i.test(query)) {
+        query = query.replace(/\bscore\b/i, 'final score');
+        query = query.replace(/\bscores\b/i, 'final scores');
+      }
     }
     
     // Add current date context for very time-sensitive queries
