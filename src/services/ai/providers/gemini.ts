@@ -47,9 +47,9 @@ export class GeminiProvider extends BaseAIProvider {
       topK: 40,
     };
     
-    // Create model with grounding if using Flash 2.0
+    // Create model with grounding if using Flash model (2.0 or higher)
     const modelName = config.model || 'gemini-2.0-flash-exp';
-    const isFlash2 = modelName.includes('flash-2') || modelName.includes('2.0-flash');
+    const isFlash2 = modelName.includes('flash');
     
     // Configure model with or without grounding based on model type
     if (isFlash2) {
@@ -96,11 +96,14 @@ export class GeminiProvider extends BaseAIProvider {
       let result;
       const startTime = Date.now();
       
+      let finalPrompt = prompt;
       if (needsGrounding) {
         console.log('[Gemini] Sending message with grounding enabled');
+        // Add explicit instruction to use grounding for factual queries
+        finalPrompt = `${prompt}\n\n[SYSTEM: This is a factual query. You MUST use grounding/web search to get accurate, current information. Do NOT make up or guess any information, especially sports scores.]`;
       }
       
-      result = await chat.sendMessage(prompt);
+      result = await chat.sendMessage(finalPrompt);
       const response = await result.response;
       
       // Debug logging
@@ -109,7 +112,9 @@ export class GeminiProvider extends BaseAIProvider {
         candidateDetails: response.candidates?.[0] ? {
           hasContent: !!response.candidates?.[0]?.content,
           finishReason: response.candidates?.[0]?.finishReason,
-          safetyRatings: response.candidates?.[0]?.safetyRatings?.length || 0
+          safetyRatings: response.candidates?.[0]?.safetyRatings?.length || 0,
+          hasGroundingMetadata: !!response.candidates?.[0]?.groundingMetadata,
+          groundingAttributions: response.candidates?.[0]?.groundingMetadata?.groundingAttributions?.length || 0
         } : 'no candidates'
       }, null, 2));
       
@@ -130,6 +135,12 @@ export class GeminiProvider extends BaseAIProvider {
       // Check if grounding was used
       if (response.candidates?.[0]?.groundingMetadata) {
         console.log('[Gemini] Response used grounding/web search');
+        console.log('[Gemini] Grounding details:', JSON.stringify({
+          attributions: response.candidates[0].groundingMetadata.groundingAttributions?.length || 0,
+          queries: response.candidates[0].groundingMetadata.searchQueries || []
+        }, null, 2));
+      } else if (needsGrounding) {
+        console.error('[Gemini] WARNING: Grounding was needed but not used!');
       }
       
       // Calculate token usage (estimated)
@@ -165,12 +176,16 @@ export class GeminiProvider extends BaseAIProvider {
   private shouldUseGrounding(prompt: string): boolean {
     const groundingPatterns = [
       // Current events and news
-      /\b(current|today|latest|recent|now|happening)\b/i,
+      /\b(current|today|latest|recent|now|happening|yesterday|last night)\b/i,
       /\b(news|update|announcement|breaking)\b/i,
       
       // Sports and games
-      /\b(score|game|match|win|won|lost|championship|finals)\b/i,
-      /\b(nba|nfl|mlb|nhl|sports)\b/i,
+      /\b(score|game|match|win|won|lost|championship|finals|playoff)\b/i,
+      /\b(nba|nfl|mlb|nhl|sports|basketball|football|baseball|hockey)\b/i,
+      
+      // Score-specific queries
+      /\b(actual score|final score|what was the score|score was)\b/i,
+      /\b(pacers|thunder|celtics|mavericks|lakers|warriors)\b/i, // Team names
       
       // Weather
       /\b(weather|temperature|forecast)\b/i,
@@ -185,7 +200,10 @@ export class GeminiProvider extends BaseAIProvider {
       /\b(when|what time|schedule)\b/i,
       
       // Explicit year mentions suggesting time-sensitive info
-      /\b(202[4-9]|203\d)\b/
+      /\b(202[4-9]|203\d)\b/,
+      
+      // Context continuation (referring to previous topic)
+      /^(okay |alright |so |and |but |what about |how about)/i
     ];
     
     return groundingPatterns.some(pattern => pattern.test(prompt));
