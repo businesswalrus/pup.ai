@@ -2,13 +2,11 @@ import { App, LogLevel } from '@slack/bolt';
 import { config, validateConfig } from './config';
 import { AIService } from './services/ai';
 import { AIServiceConfig } from './types/ai';
-import { WebSearchService } from './utils/webSearch';
 
 export class PupAI {
   private app: App;
   private aiService: AIService | null = null;
   private botUserId: string | null = null;
-  private webSearchService: WebSearchService;
 
   constructor() {
     validateConfig();
@@ -19,9 +17,6 @@ export class PupAI {
       myUserId: config.MY_USER_ID,
       socketMode: !!config.SLACK_APP_TOKEN
     });
-    
-    // Initialize web search service
-    this.webSearchService = new WebSearchService();
 
     this.app = new App({
       token: config.SLACK_BOT_TOKEN,
@@ -124,50 +119,9 @@ export class PupAI {
             const cleanText = text.replace(/<@[A-Z0-9]+>/g, '').trim();
             
             try {
-              // Check if web search is needed
-              let enhancedPrompt = cleanText;
-              let searchContext = '';
-              
-              // Skip manual web search if using Gemini 2.0 with grounding (not 2.5 which doesn't support it)
-              const isUsingGemini = this.aiService && this.aiService.getActiveProvider() === 'gemini';
-              const activeModel = this.aiService?.getActiveModel() || '';
-              const geminiHasGrounding = isUsingGemini && (activeModel.includes('2.0-flash') || activeModel === 'gemini-2.0-flash-exp');
-              
-              if ((!isUsingGemini || !geminiHasGrounding) && this.webSearchService.shouldSearch(cleanText)) {
-                console.log('🔍 Web search triggered for query:', cleanText);
-                const searchResults = await this.webSearchService.search(cleanText);
-                
-                if (searchResults.length > 0) {
-                  // Log search results for debugging sports scores
-                  console.log('🔍 Web search results:', searchResults.map(r => ({
-                    title: r.title,
-                    snippet: r.snippet.substring(0, 150) + (r.snippet.length > 150 ? '...' : ''),
-                    hasScore: /\d{2,3}\s*[-–]\s*\d{2,3}/.test(r.snippet)
-                  })));
-                  
-                  searchContext = '\n\nCurrent web search results:\n' + 
-                    searchResults.map((r, i) => 
-                      `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
-                    ).join('\n\n');
-                  
-                  // Check if this is a sports score query
-                  const isScoreQuery = /\b(score|scores|game|match|finals|playoff|win|won|lost)\b/i.test(cleanText);
-                  
-                  if (isScoreQuery) {
-                    enhancedPrompt = `${cleanText}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain information about the query. Look for EXACT SCORES in formats like "123-107", "Team A 123, Team B 107", or similar score patterns. If the search results mention a game but don't contain the exact score, acknowledge what information IS available (e.g., "The search shows Game 2 happened but didn't return the final score"). If no relevant information is found, say so. DO NOT make up scores or invent information.]${searchContext}`;
-                  } else {
-                    enhancedPrompt = `${cleanText}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
-                  }
-                  console.log('🔍 Added web search context to prompt');
-                }
-              } else if (geminiHasGrounding && this.webSearchService.shouldSearch(cleanText)) {
-                console.log('🔍 Skipping manual web search - Gemini 2.0 has built-in grounding');
-              } else if (isUsingGemini && !geminiHasGrounding && this.webSearchService.shouldSearch(cleanText)) {
-                console.log('🔍 Gemini 2.5 does not support grounding - using manual web search');
-              }
-              
+              // Direct pass to Gemini - no web search
               const aiResponse = await this.aiService.generateResponse(
-                enhancedPrompt,
+                cleanText,
                 channel,
                 userId,
                 {
@@ -178,7 +132,7 @@ export class PupAI {
                     channelType: isDirectMessage ? 'DM' : 'channel',
                     context: isOwner ? 'owner' : 'regular',
                     isOwner: isOwner.toString(),
-                    hasSearchResults: searchContext ? 'true' : 'false'
+                    hasSearchResults: 'false'
                   }
                 }
               );
@@ -326,12 +280,7 @@ export class PupAI {
               },
               
               search: async () => {
-                try {
-                  const results = await this.webSearchService.search('latest news today');
-                  return `Search working: ${results.length > 0 ? '✅' : '❌'} (${results.length} results)`;
-                } catch (error) {
-                  return `Search working: ❌ (${error})`;
-                }
+                return `Search: Handled by Gemini's built-in grounding ✅`;
               },
               
               context: () => {
@@ -415,43 +364,9 @@ export class PupAI {
         
         if (this.aiService && text) {
           try {
-            // Check if web search is needed
-            let enhancedPrompt = text;
-            let searchContext = '';
-            
-            // Skip manual web search if using Gemini 2.0 with grounding (not 2.5 which doesn't support it)
-            const isUsingGemini = this.aiService && this.aiService.getActiveProvider() === 'gemini';
-            const activeModel = this.aiService?.getActiveModel() || '';
-            const geminiHasGrounding = isUsingGemini && (activeModel.includes('2.0-flash') || activeModel === 'gemini-2.0-flash-exp');
-            
-            if ((!isUsingGemini || !geminiHasGrounding) && this.webSearchService.shouldSearch(text)) {
-              console.log('🔍 Web search triggered for app mention:', text);
-              const searchResults = await this.webSearchService.search(text);
-              
-              if (searchResults.length > 0) {
-                searchContext = '\n\nCurrent web search results:\n' + 
-                  searchResults.map((r, i) => 
-                    `${i + 1}. ${r.title}\n   ${r.snippet}\n   Source: ${r.url}`
-                  ).join('\n\n');
-                
-                // Check if this is a sports score query
-                const isScoreQuery = /\b(score|scores|game|match|finals|playoff|win|won|lost)\b/i.test(text);
-                
-                if (isScoreQuery) {
-                  enhancedPrompt = `${text}\n\n[CRITICAL SYSTEM INSTRUCTION: The search results below contain information about the query. Look for EXACT SCORES in formats like "123-107", "Team A 123, Team B 107", or similar score patterns. If the search results mention a game but don't contain the exact score, acknowledge what information IS available (e.g., "The search shows Game 2 happened but didn't return the final score"). If no relevant information is found, say so. DO NOT make up scores or invent information.]${searchContext}`;
-                } else {
-                  enhancedPrompt = `${text}\n\n[System: Use these current search results to provide an accurate, up-to-date answer. Mention that you searched for current information.]${searchContext}`;
-                }
-                console.log('🔍 Added web search context to app mention');
-              }
-            } else if (geminiHasGrounding && this.webSearchService.shouldSearch(text)) {
-              console.log('🔍 Skipping manual web search - Gemini 2.0 has built-in grounding');
-            } else if (isUsingGemini && !geminiHasGrounding && this.webSearchService.shouldSearch(text)) {
-              console.log('🔍 Gemini 2.5 does not support grounding - using manual web search');
-            }
-            
+            // Direct pass to Gemini - no web search
             const aiResponse = await this.aiService.generateResponse(
-              enhancedPrompt,
+              text,
               event.channel,
               userId,
               {
@@ -463,7 +378,7 @@ export class PupAI {
                   channelType: 'channel',
                   context: isOwner ? 'owner' : 'regular',
                   isOwner: isOwner.toString(),
-                  hasSearchResults: searchContext ? 'true' : 'false'
+                  hasSearchResults: 'false'
                 }
               }
             );
@@ -641,16 +556,15 @@ export class PupAI {
 - Cut through corporate speak and jargon
 
 ## Always Back It Up (DO NOT MAKE SHIT UP)
-- SEARCH FIRST, ANSWER SECOND - If someone asks about recent events, sports scores, or factual information, USE WEB SEARCH/GROUNDING
-- SPORTS QUERIES REQUIRE GROUNDING - Never make up NBA/NFL/MLB/NHL scores. ALWAYS use grounding for "what was the score", "who won", etc.
-- WHEN SEARCH RESULTS ARE PROVIDED: Look for EXACT SCORES in the format "123-107" or "Team A 123, Team B 107" - EXTRACT AND REPORT THESE NUMBERS
-- If search results don't contain exact scores, say "The search didn't find exact scores" - DO NOT MAKE UP NUMBERS
-- If you claim a fact, you better have searched for it or be damn sure it's correct
-- Don't make stuff up—if you don't know, say so: "Let me look that up" then ACTUALLY LOOK IT UP
+- USE YOUR GROUNDING/SEARCH for sports scores, current events, or real-time information
+- When someone asks about today's games/news/weather, SEARCH FOR IT with grounding
+- Never make up scores - if grounding returns results, use them; if not, say you couldn't find it
+- If you claim a fact, either ground it or be damn sure it's correct
+- Don't make stuff up—if grounding fails, say so: "My search didn't find that info."
 - When you get facts wrong, own it immediately: "Shit, I was wrong. Here's what actually happened..."
 - Be transparent about uncertainty while still having an opinion
 - Making up sports scores or event details = instant credibility death
-- For sports queries, ALWAYS rely on search results for current matchups and scores - teams change every season
+- ALWAYS use grounding for: NBA/NFL/MLB/NHL scores, current news, weather, stock prices
 
 ## Adapt to Context
 - Match channel formality: #random can be cheekier, #support slightly smoother, #leadership more polished (though still opinionated)
@@ -734,18 +648,28 @@ export class PupAI {
       modelDisplay = `${process.env.ANTHROPIC_MODEL} (Anthropic)`;
     }
     
-    prompt += `\n\nIMPORTANT: Today's date is ${currentDate}. When searching for current events or recent information, always include appropriate date context in your searches.`;
+    prompt += `\n\nIMPORTANT: Today's date is ${currentDate}. Use this for temporal context and grounding searches.`;
     prompt += `\n\nYou are running on ${modelDisplay}. Do not claim to be any other model.`;
     
     // Add model-specific limitations notice
     if (isUsingGemini) {
-      prompt += `\n\nCRITICAL GEMINI INSTRUCTIONS:
-- You have built-in grounding/web search that MUST be used for ALL factual queries
-- NEVER make up sports scores - ALWAYS use grounding for NBA/NFL/MLB/NHL queries
-- When someone asks "what was the score" or "who won", USE GROUNDING
-- For current sports matchups, ALWAYS rely on grounding/search results - teams change every season
-- If grounding doesn't work, say "I couldn't find current information" - DON'T GUESS
-- Your grounding tool is called googleSearchRetrieval - USE IT`;
+      // Check if using Gemini 2.0 (has grounding) or 2.5 (no grounding)
+      const hasGrounding = modelName.includes('2.0-flash') || modelName === 'gemini-2.0-flash-exp';
+      
+      if (hasGrounding) {
+        prompt += `\n\nCRITICAL GEMINI INSTRUCTIONS:
+- You HAVE built-in grounding/web search capabilities - USE THEM!
+- For sports scores, current events, weather, etc. - USE YOUR GROUNDING
+- When someone asks "what was the score" or "who won", SEARCH WITH GROUNDING
+- Your grounding tool provides real-time accurate information - trust it
+- If grounding returns no results, say "I couldn't find that information" - don't make it up`;
+      } else {
+        prompt += `\n\nCRITICAL GEMINI 2.5 INSTRUCTIONS:
+- You're running Gemini 2.5 which does NOT have grounding/web search
+- For current sports scores, news, weather: be honest - "I don't have real-time access. Check ESPN/news sites."
+- Don't make up current information - direct to official sources
+- You can discuss historical events from your training data confidently`;
+      }
     } else if (modelName.startsWith('o1') || modelName.includes('o4')) {
       prompt += `\n\nNOTE: You are running on an o1-series model which does not yet support web search or function calling. For factual queries about current events, sports scores, or real-time information, you should clearly state that you cannot search for this information and suggest the user try a different model or check the information themselves.`;
     } else if (modelName.toLowerCase() === 'deepseek-r1') {
